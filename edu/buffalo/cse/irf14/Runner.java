@@ -61,7 +61,6 @@ public class Runner {
 						continue;
 					}
 					try {
-						System.out.println(dir.getAbsolutePath() + File.separator +f);
 						d = Parser.parse(dir.getAbsolutePath() + File.separator +f);
 						writer.addDocument(d);
 					} catch (ParserException e) {
@@ -74,9 +73,9 @@ public class Runner {
 			}
 			
 			writer.close();
-			//IndexReader reader = new IndexReader(indexDir, IndexType.TERM);
+			IndexReader reader = new IndexReader(indexDir, IndexType.TERM);
 			
-			//reader.getTopK(10);
+			System.out.println(reader.getTopK(10));
 			
 			long end = System.currentTimeMillis();
 			long time = (end - start) / 1000;

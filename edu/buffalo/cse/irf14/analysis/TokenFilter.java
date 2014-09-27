@@ -11,7 +11,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import sun.org.mozilla.javascript.internal.json.JsonParser.ParseException;
+
 
 /**
  * The abstract class that you must extend when implementing your 
@@ -799,7 +799,7 @@ class DatesFilter extends TokenFilter
 						SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
 						simple.setCalendar(cal);
 						transformedData = simple.format(cal.getTime());
-						stream.getCurrent().setTermText(transformedData);
+						
 					}
 					else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am)\\.?)")) // for cases like 5:15PM.
 					{
@@ -808,7 +808,7 @@ class DatesFilter extends TokenFilter
 						SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
 						simple.setCalendar(cal);
 						transformedData = simple.format(cal.getTime()) + ".";
-						stream.getCurrent().setTermText(transformedData);
+						
 					}
 					else if (regexData.matches("((?i)[0-9]{1,}(ad|bc)\\.)")) // for cases like 847AD
 					{
@@ -817,7 +817,7 @@ class DatesFilter extends TokenFilter
 						SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
 						simple.setCalendar(cal);
 						transformedData = simple.format(cal.getTime()) + ".";
-						stream.getCurrent().setTermText(transformedData);
+						
 					}
 					else if (regexData.matches("[0-9]{4}(-)[0-9]{2}\\.")) // for cases like 2011-12
 					{
@@ -837,11 +837,13 @@ class DatesFilter extends TokenFilter
 						simple.setCalendar(cal);
 						twoyears[1] = simple.format(cal.getTime());
 						transformedData = twoyears[0] + "-" + twoyears[1] + ".";
-						stream.getCurrent().setTermText(transformedData);
+						
 					}
 				}
-				
-				stream.previous();
+				if (transformedData.equals("") == false)
+				{
+				stream.getCurrent().setTermText(transformedData);
+				}
 				stream.next();
 			}
 			

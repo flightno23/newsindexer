@@ -38,7 +38,6 @@ public class Parser {
 		if (filename == null){
 			throw new ParserException();
 		}
-		System.out.println("parsing started");
 		
 		// Variable indexPos to track the current pointer location in the String Array
 		int indexPos = 0;

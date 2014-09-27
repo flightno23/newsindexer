@@ -152,7 +152,6 @@ public class IndexWriter extends Token implements Serializable{
 		
 		if (d.getField(FieldNames.CATEGORY) != null)
 		{	
-			System.out.println("inside category");
 			categoryFile = d.getField(FieldNames.CATEGORY)[0];
 		// if the category is already present, get the category ID
 			if (categoryDictionary.containsKey(categoryFile))
@@ -181,7 +180,6 @@ public class IndexWriter extends Token implements Serializable{
 			}
 			else
 			{	
-				System.out.println("category added");
 				postingsListCategory = new LinkedList<Postings>();
 				Postings element = new Postings(idFile);
 				postingsListCategory.add(element);
@@ -196,37 +194,31 @@ public class IndexWriter extends Token implements Serializable{
 		if (d.getField(FieldNames.TITLE) != null)
 		{
 			analyzeField(FieldNames.TITLE, d.getField(FieldNames.TITLE)[0], idFile);
-			System.out.println("done title");
 		}
 		
 		if (d.getField(FieldNames.CONTENT) != null)
 		{
 			analyzeField(FieldNames.CONTENT, d.getField(FieldNames.CONTENT)[0], idFile);
-			System.out.println("done content");
 		}
 		
 		if (d.getField(FieldNames.PLACE) != null)
 		{
 			analyzeField(FieldNames.PLACE, d.getField(FieldNames.PLACE)[0], idFile);
-			System.out.println("done place");
 		}
 		
 		if (d.getField(FieldNames.NEWSDATE) != null)
 		{
 			analyzeField(FieldNames.NEWSDATE, d.getField(FieldNames.NEWSDATE)[0], idFile);
-			System.out.println("done newsdate");
 		}
 		
 		if (d.getField(FieldNames.AUTHORORG) != null)
 		{
 			analyzeField(FieldNames.AUTHORORG, d.getField(FieldNames.AUTHORORG)[0], idFile);
-			System.out.println("done authororg");
 		}
 		
 		if (d.getField(FieldNames.AUTHOR) != null)
 		{
 			analyzeField(FieldNames.AUTHOR, d.getField(FieldNames.AUTHOR), idFile);
-			System.out.println("done author");
 		}
 		
 		
@@ -325,6 +317,7 @@ public class IndexWriter extends Token implements Serializable{
 				Analyzer anal;
 				anal = a.getAnalyzerForField(fn, tstream);
 				tstream = anal.getStream();
+				
 
 				// iterate through the processed tokens and start the indexing
 				// process
