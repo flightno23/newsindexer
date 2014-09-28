@@ -97,13 +97,7 @@ public class AnalyzerFactory {
 			stream.reset();
 			
 			
-			// THRU STOPWORDS FILTER
-			filter = factory.getFilterByType(TokenFilterType.STOPWORD, stream);
 			
-			while (filter.increment()) {
-				//Do nothing :/
-			}
-			stream.reset();
 			
 			// THRU DATES FILTER
 			filter = factory.getFilterByType(TokenFilterType.DATE, stream);
@@ -111,6 +105,14 @@ public class AnalyzerFactory {
 			while (filter.increment()) {
 				//Do nothing :/
 			}			
+			stream.reset();
+			
+			// THRU STOPWORDS FILTER
+			filter = factory.getFilterByType(TokenFilterType.STOPWORD, stream);
+			
+			while (filter.increment()) {
+				//Do nothing :/
+			}
 			stream.reset();
 			
 			// THRU NUMBERS FILTER

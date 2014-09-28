@@ -30,7 +30,7 @@ public class IndexReader {
 	// HashMaps that get the index as well as Top K terms from disk
 	private HashMap<Integer, LinkedList<Postings>> Index;
 	private HashMap<String, Integer> Dictionary;
-	private HashMap<String, Integer> kTermIndex;
+	private HashMap<String, Integer> kIndex;
 	private HashMap<String, Integer> fileIDDictionary;
 	private HashMap<Integer, String> inverseFileIDDictionary;
 	
@@ -46,6 +46,7 @@ public class IndexReader {
 		        ObjectInputStream ois = new ObjectInputStream(fis);
 		        Index = (HashMap<Integer, LinkedList<Postings>>) ois.readObject();
 		        Dictionary = (HashMap<String, Integer>) ois.readObject();
+		        this.kIndex = (HashMap<String, Integer>) ois.readObject();
 		        
 		        fis = new FileInputStream(indexDir + File.separator + "fileIDDict.ser");
 		        ois = new ObjectInputStream(fis);
@@ -72,15 +73,15 @@ public class IndexReader {
 		        ObjectInputStream ois = new ObjectInputStream(fis);
 		        Index = (HashMap<Integer, LinkedList<Postings>>) ois.readObject();
 		        Dictionary = (HashMap<String, Integer>) ois.readObject();
+		        this.kIndex = (HashMap<String, Integer>) ois.readObject();
 		        
 		        fis = new FileInputStream(indexDir + File.separator + "fileIDDict.ser");
 		        ois = new ObjectInputStream(fis);
 		        fileIDDictionary = (HashMap<String, Integer>) ois.readObject();
 		        this.inverseFileIDDictionary = (HashMap<Integer, String>) ois.readObject();
 		        
-		        fis = new FileInputStream(indexDir + File.separator + "kTermMap.ser");
-		        ois = new ObjectInputStream(fis);
-		        this.kTermIndex = (HashMap<String, Integer>) ois.readObject();
+		        
+		        
 		        
 		        
 		        ois.close();
@@ -103,6 +104,7 @@ public class IndexReader {
 		        ObjectInputStream ois = new ObjectInputStream(fis);
 		        Index = (HashMap<Integer, LinkedList<Postings>>) ois.readObject();
 		        Dictionary = (HashMap<String, Integer>) ois.readObject();
+		        this.kIndex = (HashMap<String, Integer>) ois.readObject();
 		        
 		        fis = new FileInputStream(indexDir + File.separator + "fileIDDict.ser");
 		        ois = new ObjectInputStream(fis);
@@ -129,6 +131,7 @@ public class IndexReader {
 		        ObjectInputStream ois = new ObjectInputStream(fis);
 		        Index = (HashMap<Integer, LinkedList<Postings>>) ois.readObject();
 		        Dictionary = (HashMap<String, Integer>) ois.readObject();
+		        this.kIndex = (HashMap<String, Integer>) ois.readObject();
 		        
 		        fis = new FileInputStream(indexDir + File.separator + "fileIDDict.ser");
 		        ois = new ObjectInputStream(fis);
@@ -231,9 +234,9 @@ public class IndexReader {
 			return null;	
 		}
 		else {
-			QueryValueComparator compPattern = new QueryValueComparator(this.kTermIndex);
+			QueryValueComparator compPattern = new QueryValueComparator(this.kIndex);
 			TreeMap<String, Integer> topKTree = new TreeMap<String, Integer>(compPattern);
-			topKTree.putAll(this.kTermIndex);
+			topKTree.putAll(this.kIndex);
 
 			int i = 1;
 			for (Entry<String, Integer> etr : topKTree.entrySet()) 

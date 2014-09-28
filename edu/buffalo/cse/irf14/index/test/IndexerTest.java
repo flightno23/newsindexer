@@ -43,9 +43,9 @@ public class IndexerTest {
 		String[] strs = {"new home sales top sales forecasts", "home sales rise in july", 
 				"increase in home sales in july", "july new home sales rise"};
 		int len = strs.length;
-		System.out.println("inhere");
 		Document d;
-		String dir = "/Users/Girish/Projects/newsindexer/Indexes";
+		String dir = System.getProperty("INDEX.DIR");
+		
 		IndexWriter writer = new IndexWriter(dir); //set this beforehand
 		for (int i = 0; i < len; i++) {
 			d = new Document();
@@ -54,36 +54,34 @@ public class IndexerTest {
 			writer.addDocument(d);
 		}
 		
-		
-		
 		writer.close();
 	}
 
 	@Before
 	public final void before() {
-		reader = new IndexReader("/Users/Girish/Projects/newsindexer/Indexes", IndexType.TERM);
+		reader = new IndexReader(System.getProperty("INDEX.DIR"), IndexType.TERM);
 	}
 	
 	/**
 	 * Test method for {@link edu.buffalo.cse.irf14.index.IndexReader#getTotalKeyTerms()}.
 	 */
-	/*@Test
+	@Test
 	public final void testGetTotalKeyTerms() {
 		assertEquals(8.0d, reader.getTotalKeyTerms(), 1); //12.5% error tolerated
-	}*/
+	}
 
 	/**
 	 * Test method for {@link edu.buffalo.cse.irf14.index.IndexReader#getTotalValueTerms()}.
 	 */
-	/*@Test
+	@Test
 	public final void testGetTotalValueTerms() {
 		assertEquals(4.0d, reader.getTotalValueTerms(), 0); //there's just four docs
-	}*/
+	}
 
 	/**
 	 * Test method for {@link edu.buffalo.cse.irf14.index.IndexReader#getPostings(java.lang.String)}.
 	 */
-	/*@Test
+	@Test
 	public final void testGetPostings() {
 		String query = getAnalyzedTerm("home");
 		Map<String, Integer> map = reader.getPostings(query);
@@ -107,19 +105,19 @@ public class IndexerTest {
 		query = getAnalyzedTerm("null");
 		map = reader.getPostings(query);
 		assertNull(map);
-	}*/
+	}
 
 	private static String getAnalyzedTerm(String string) {
 		Tokenizer tknizer = new Tokenizer();
 		AnalyzerFactory fact = AnalyzerFactory.getInstance();
 		try {
 			TokenStream stream = tknizer.consume(string);
-			
 			Analyzer analyzer = fact.getAnalyzerForField(FieldNames.CONTENT, stream);
+			
 			while (analyzer.increment()) {
 				
 			}
-			System.out.println(stream.toString());
+			stream = analyzer.getStream();
 			stream.reset();
 			return stream.next().toString();
 		} catch (TokenizerException e) {
@@ -139,13 +137,10 @@ public class IndexerTest {
 		String[] vals = {"sales", "home", "july"};
 		
 		for (int i = 0; i < 3; i++) {
-			
 			vals[i] = getAnalyzedTerm(vals[i]);
-			
 		}
 		
 		for (int i = 0; i < 3; i++) {
-			System.out.println("dracuLA");
 			topK = reader.getTopK(i + 1);
 			assertNotNull(topK);
 			assertEquals(i + 1, topK.size(), 0);
@@ -173,9 +168,9 @@ public class IndexerTest {
 			queryTerms[i] = getAnalyzedTerm(queryTerms[i]);
 		}
 		
-		
-		// Dummy inverted index
-		 
+		/*
+		 * Dummy inverted index
+		 */
 		HashMap<String, Integer>[] invIdx = prepareIndex(queryTerms);
 		HashMap<String, Integer> expected;
 		

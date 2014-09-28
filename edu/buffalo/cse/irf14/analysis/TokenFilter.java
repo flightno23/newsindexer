@@ -583,7 +583,7 @@ class DatesFilter extends TokenFilter
 			// get the first term
 			firstToken = stream.next().getTermText();
 			if (firstToken.matches("[0-9]{1,2}") || firstToken.matches("[0-9]{4}") // for day of month or year cases 
-				|| firstToken.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(march)|may|(aug(ust)?)|(jun)(e)?|(jul)(y)?))") // for month name
+				|| firstToken.matches("((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))") // for month name
 				|| firstToken.matches("[0-1]?[0-9]:[0-6]?[0-9]") // for time in hh:mm format
 				|| firstToken.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am)\\.)") // for time in hh:mmAM/PM. format
 				|| firstToken.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am))") // for time in hh:mmAM/PM format (w/o period punc)
@@ -598,7 +598,7 @@ class DatesFilter extends TokenFilter
 				{	// NOW inside the Second Token
 					// pointer is at A  B | C
 					secondToken = stream.next().getTermText();
-					if(secondToken.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(march)|may|(aug(ust)?)|(jun)(e)?|(jul)(y)?))") // for cases like 1 january
+					if(secondToken.matches("((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))") // for cases like 1 january
 						|| secondToken.matches("[0-9]{1,2},") // for cases like March 2,
 						|| secondToken.matches("[0-9]{1,2}") // for cases like March 2 (w/o period)
 						|| secondToken.matches("(?i)(ad|bc)") // for cases like 84 BC
@@ -614,9 +614,11 @@ class DatesFilter extends TokenFilter
 							{	
 								regexData = firstToken + " " + secondToken + " " + thirdToken;
 								// check the two cases where 3 tokens come into play
-								if (regexData.matches("([0-9]{1,2}\\s((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{4})"))
+								if (regexData.matches("([0-9]{1,2}\\s((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))\\s[0-9]{4})"))
 								// for cases like 1 january 1944	
-								{
+								{	
+		
+									
 									date = new SimpleDateFormat("dd MMMM yyyy", Locale.ENGLISH).parse(regexData);
 									cal.setTime(date);
 									SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
@@ -628,7 +630,7 @@ class DatesFilter extends TokenFilter
 									stream.previous();
 									stream.next();
 								}
-								else if (regexData.matches("(((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2},\\s[0-9]{4},)")) // for cases like December 7, 1941,
+								else if (regexData.matches("(((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))\\s[0-9]{1,2},\\s[0-9]{4},)")) // for cases like December 7, 1941,
 								// for cases like December 7, 1941,
 								{	
 									date = new SimpleDateFormat("MMMM dd, yyyy,", Locale.ENGLISH).parse(regexData);
@@ -644,7 +646,7 @@ class DatesFilter extends TokenFilter
 									
 								}
 								
-								else if (regexData.matches("(((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2},\\s[0-9]{4})")) // for cases like December 7, 1941,
+								else if (regexData.matches("(((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))\\s[0-9]{1,2},\\s[0-9]{4})")) // for cases like December 7, 1941,
 								// for cases like December 7, 1941 (w/o comma)
 								{	
 									date = new SimpleDateFormat("MMMM dd, yyyy", Locale.ENGLISH).parse(regexData);
@@ -660,7 +662,7 @@ class DatesFilter extends TokenFilter
 									
 								}
 								
-								else if (regexData.matches("(((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2}\\s[0-9]{4})")) // for cases like December 7, 1941,
+								else if (regexData.matches("(((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))\\s[0-9]{1,2}\\s[0-9]{4})")) // for cases like December 7, 1941,
 								// for cases like December 7 1941
 								{	
 									date = new SimpleDateFormat("MMMM dd yyyy", Locale.ENGLISH).parse(regexData);
@@ -737,7 +739,7 @@ class DatesFilter extends TokenFilter
 								}
 								
 								
-								else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2}")) // for cases like April 11
+								else if (regexData.matches("((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))\\s[0-9]{1,2}")) // for cases like April 11
 								{
 									date = new SimpleDateFormat("MMMM dd", Locale.ENGLISH).parse(regexData);
 									cal.setTime(date);
@@ -750,7 +752,7 @@ class DatesFilter extends TokenFilter
 									stream.next();
 								}
 								
-								else if (regexData.matches("[0-9]{1,2}\\s((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))")) // for cases like 11 March
+								else if (regexData.matches("[0-9]{1,2}\\s((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))")) // for cases like 11 March
 								{
 									date = new SimpleDateFormat("dd MMMM", Locale.ENGLISH).parse(regexData);
 									cal.setTime(date);
@@ -824,7 +826,7 @@ class DatesFilter extends TokenFilter
 						}
 						
 						
-						else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2}")) // for cases like April 11
+						else if (regexData.matches("((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))\\s[0-9]{1,2}")) // for cases like April 11
 						{
 							date = new SimpleDateFormat("MMMM dd", Locale.ENGLISH).parse(regexData);
 							cal.setTime(date);
@@ -837,7 +839,7 @@ class DatesFilter extends TokenFilter
 							stream.next();
 						}
 						
-						else if (regexData.matches("[0-9]{1,2}\\s((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))")) // for cases like 11 March
+						else if (regexData.matches("[0-9]{1,2}\\s((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))")) // for cases like 11 March
 						{
 							date = new SimpleDateFormat("dd MMMM", Locale.ENGLISH).parse(regexData);
 							cal.setTime(date);
@@ -969,7 +971,7 @@ class DatesFilter extends TokenFilter
 							transformedData = twoyears[0] + "-" + twoyears[1];	
 						}
 						
-						else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(march)|may|(aug(ust)?)|(jun)(e)?|(jul)(y)?))")) // for cases like January
+						else if (regexData.matches("((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))")) // for cases like January
 						{	
 							
 							date = new SimpleDateFormat("MMMM", Locale.ENGLISH).parse(regexData);
@@ -1097,7 +1099,7 @@ class DatesFilter extends TokenFilter
 						transformedData = twoyears[0] + "-" + twoyears[1];	
 					}
 					
-					else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(march)|may|(aug(ust)?)|(jun)(e)?|(jul)(y)?))")) // for cases like January
+					else if (regexData.matches("((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december))")) // for cases like January
 					{	
 						
 						date = new SimpleDateFormat("MMMM", Locale.ENGLISH).parse(regexData);

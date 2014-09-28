@@ -56,6 +56,9 @@ public class IndexWriter extends Token implements Serializable{
 	
 	// declaring hash map which will generate top k terms
 	private HashMap<String, Integer> kTermMap;
+	private HashMap<String, Integer> kCategoryMap;
+	private HashMap<String, Integer> kPlaceMap;
+	private HashMap<String, Integer> kAuthorMap;
 	
 	
 	// Inner class postings to store postings information
@@ -113,6 +116,10 @@ public class IndexWriter extends Token implements Serializable{
 		
 		// Allocating memory for the kTermMap
 		this.kTermMap = new HashMap<String, Integer>();
+		this.kAuthorMap = new HashMap<String, Integer>();
+		this.kPlaceMap = new HashMap<String, Integer>();
+		this.kCategoryMap = new HashMap<String, Integer>();
+		
 		
 	}
 	
@@ -167,6 +174,15 @@ public class IndexWriter extends Token implements Serializable{
 				idCat = this.categoryIDAssigner;
 				this.categoryDictionary.put(categoryFile, idCat);
 				this.categoryIDAssigner++;
+			}
+			
+			// code to store term into kTermMap as (Term : Occurences)
+			if (kCategoryMap.containsKey(categoryFile)) {	// if Category already present, do nothing
+				int valueOccur = kCategoryMap.get(categoryFile);
+				valueOccur++;
+				kCategoryMap.put(categoryFile, valueOccur);
+			} else {  // set new Category and map it to (Category : 1)
+				kCategoryMap.put(categoryFile, 1);
 			}
 		
 			
@@ -295,7 +311,9 @@ public class IndexWriter extends Token implements Serializable{
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
 	        oos.writeObject(this.termIndex);
 	        oos.writeObject(this.termDictionary);
+	        oos.writeObject(this.kTermMap);
 	        fos.close();
+	        System.out.println(kTermMap.keySet());
 	        
 	        
 	        // writing author index and dictionary to file
@@ -303,6 +321,7 @@ public class IndexWriter extends Token implements Serializable{
 	        oos = new ObjectOutputStream(fos);
 	        oos.writeObject(this.authorIndex);
 	        oos.writeObject(this.authorDictionary);
+	        oos.writeObject(this.kAuthorMap);
 	        fos.close();
 	        
 	        // writing place index and dictionary to file
@@ -310,6 +329,7 @@ public class IndexWriter extends Token implements Serializable{
 	        oos = new ObjectOutputStream(fos);
 	        oos.writeObject(this.placeIndex);
 	        oos.writeObject(this.placeDictionary);
+	        oos.writeObject(this.kPlaceMap);
 	        fos.close();
 	        
 	        // writing category index and dictionary to file
@@ -317,13 +337,10 @@ public class IndexWriter extends Token implements Serializable{
 	        oos = new ObjectOutputStream(fos);
 	        oos.writeObject(this.categoryIndex);
 	        oos.writeObject(this.categoryDictionary);
+	        oos.writeObject(this.kCategoryMap);
 	        fos.close();
 	        
-	        // writing KTermMap to file
-	        fos = new FileOutputStream(this.indexDirectory+File.separator+"kTermMap.ser");
-	        oos = new ObjectOutputStream(fos);
-	        oos.writeObject(this.kTermMap);
-	        fos.close();
+	        
 	        
 	        
 	        // writing fileIDDictionary to file
@@ -378,10 +395,6 @@ public class IndexWriter extends Token implements Serializable{
 				while (tstream.hasNext()) {
 					t = tstream.next();
 					tokenText = t.getTermText();
-					if (tokenText.equals("March"))
-					{
-						System.out.println(tstream.toString());
-					}
 
 					int tokenNo;
 					// create a mapping in the term dictionary , if it already exists get the mapping
@@ -471,6 +484,15 @@ public class IndexWriter extends Token implements Serializable{
 								this.placeIDAssigner);
 						tokenNo = this.placeIDAssigner;
 						this.placeIDAssigner++;
+					}
+					
+					// code to store term into kTermMap as (Term : Occurences)
+					if (kPlaceMap.containsKey(tokenText)) {	// if Place already present, do nothing
+						int valueOccur = kPlaceMap.get(tokenText);
+						valueOccur++;
+						kPlaceMap.put(tokenText, valueOccur);
+					} else {  // set new Place and map it to (Place : 1)
+						kPlaceMap.put(tokenText, 1);
 					}
 
 					// if the category is already in the category index, then
@@ -569,6 +591,15 @@ public class IndexWriter extends Token implements Serializable{
 								this.authorIDAssigner);
 						tokenNo = this.authorIDAssigner;
 						this.authorIDAssigner++;
+					}
+					
+					// code to store term into kTermMap as (Term : Occurences)
+					if (kAuthorMap.containsKey(tokenText)) {	// if Author already present, increment value
+						int valueOccur = kAuthorMap.get(tokenText);
+						valueOccur++;
+						kAuthorMap.put(tokenText, valueOccur);
+					} else {  // set new Author and map it to (Author : 1)
+						kAuthorMap.put(tokenText, 1);
 					}
 
 					// if the category is already in the category index, then
