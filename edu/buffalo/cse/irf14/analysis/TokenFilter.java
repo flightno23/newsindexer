@@ -582,23 +582,28 @@ class DatesFilter extends TokenFilter
 			// INSIDE the first token
 			// get the first term
 			firstToken = stream.next().getTermText();
-			if (firstToken.matches("[0-9]{1,4}") // for day of month 
-				|| firstToken.matches("((?i)((jan|feb)(.*)(ary)?)|((sep|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(mar)(ch)?|may|(jun)(e)?|(jul)(y)?))") // for month name
+			if (firstToken.matches("[0-9]{1,2}") || firstToken.matches("[0-9]{4}") // for day of month or year cases 
+				|| firstToken.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(march)|may|(aug(ust)?)|(jun)(e)?|(jul)(y)?))") // for month name
 				|| firstToken.matches("[0-1]?[0-9]:[0-6]?[0-9]") // for time in hh:mm format
-				|| firstToken.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am)\\.?)") // for time in hh:mm AM/PM format
-				|| firstToken.matches("((?i)[0-9]{1,}(ad|bc)\\.)") // check for 847AD. like cases
-				|| firstToken.matches("[0-9]{4}(-)[0-9]{2}\\.")) // to check for cases like 2011-12
+				|| firstToken.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am)\\.)") // for time in hh:mmAM/PM. format
+				|| firstToken.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am))") // for time in hh:mmAM/PM format (w/o period punc)
+				|| firstToken.matches("((?i)[0-9]{1,}(ad|bc)\\.)") // check for 847AD. like cases 
+				|| firstToken.matches("((?i)[0-9]{1,}(ad|bc))") // check for 847AD like cases (w/o period)
+				|| firstToken.matches("[0-9]{4}(-)[0-9]{2}\\.") // to check for cases like 2011-12.
+				|| firstToken.matches("[0-9]{4}(-)[0-9]{2}")) // to check for cases like 2011-12 (w/o period)
 			{	
 				// NOW making sure that there is a second token still in the stream,
-				// if not , then check the one token cases
+				// if not , then check the one token cases (DONE)
 				if(stream.hasNext())
 				{	// NOW inside the Second Token
 					// pointer is at A  B | C
 					secondToken = stream.next().getTermText();
-					if(secondToken.matches("((?i)((jan|feb)(.*)(ary)?)|((sep|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(mar)(ch)?|may|(jun)(e)?|(jul)(y)?))")
-						|| secondToken.matches("[0-9]{1,4},?")
-						|| secondToken.matches("(?i)(ad|bc)")
-						|| secondToken.matches("((?i)(am|pm))\\."))
+					if(secondToken.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(march)|may|(aug(ust)?)|(jun)(e)?|(jul)(y)?))") // for cases like 1 january
+						|| secondToken.matches("[0-9]{1,2},") // for cases like March 2,
+						|| secondToken.matches("[0-9]{1,2}") // for cases like March 2 (w/o period)
+						|| secondToken.matches("(?i)(ad|bc)") // for cases like 84 BC
+						|| secondToken.matches("((?i)(am|pm))\\.") // for cases like 10:15 am.
+						|| secondToken.matches("((?i)(am|pm))")) // for cases like 10:15 am (w/o period)
 					{	
 						if(stream.hasNext()) // check if there is a third token
 						{	
@@ -607,49 +612,87 @@ class DatesFilter extends TokenFilter
 							if(thirdToken.matches("[0-9]{4}")
 									|| thirdToken.matches("[0-9]{4},"))
 							{	
-								// if regex matches these three if cases then it must be a 3 token
-								// expression
-								stream.remove();
-								stream.previous();
-								stream.remove();
-								stream.previous();
 								regexData = firstToken + " " + secondToken + " " + thirdToken;
 								// check the two cases where 3 tokens come into play
-								if (regexData.matches("(.+),(.+),?"))
-								{
-									if(regexData.matches("(.+),"))
-									{
-										date = new SimpleDateFormat("MMMM dd, yyyy,", Locale.ENGLISH).parse(regexData);
-										cal.setTime(date);
-										SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
-										simple.setCalendar(cal);
-										transformedData = simple.format(cal.getTime()) + ",";
-									}
-									else
-									{
-									date = new SimpleDateFormat("MMMM dd, yyyy", Locale.ENGLISH).parse(regexData);
-									cal.setTime(date);
-									SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
-									simple.setCalendar(cal);
-									transformedData = simple.format(cal.getTime());
-									}
-									
-								}
-								else
+								if (regexData.matches("([0-9]{1,2}\\s((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{4})"))
+								// for cases like 1 january 1944	
 								{
 									date = new SimpleDateFormat("dd MMMM yyyy", Locale.ENGLISH).parse(regexData);
 									cal.setTime(date);
 									SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
 									simple.setCalendar(cal);
 									transformedData = simple.format(cal.getTime());
+									stream.remove();
+									stream.previous();
+									stream.remove();
+									stream.previous();
+									stream.next();
+								}
+								else if (regexData.matches("(((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2},\\s[0-9]{4},)")) // for cases like December 7, 1941,
+								// for cases like December 7, 1941,
+								{	
+									date = new SimpleDateFormat("MMMM dd, yyyy,", Locale.ENGLISH).parse(regexData);
+									cal.setTime(date);
+									SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+									simple.setCalendar(cal);
+									transformedData = simple.format(cal.getTime()) + ",";
+									stream.remove();
+									stream.previous();
+									stream.remove();
+									stream.previous();
+									stream.next();
+									
+								}
+								
+								else if (regexData.matches("(((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2},\\s[0-9]{4})")) // for cases like December 7, 1941,
+								// for cases like December 7, 1941 (w/o comma)
+								{	
+									date = new SimpleDateFormat("MMMM dd, yyyy", Locale.ENGLISH).parse(regexData);
+									cal.setTime(date);
+									SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+									simple.setCalendar(cal);
+									transformedData = simple.format(cal.getTime());
+									stream.remove();
+									stream.previous();
+									stream.remove();
+									stream.previous();
+									stream.next();
+									
+								}
+								
+								else if (regexData.matches("(((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2}\\s[0-9]{4})")) // for cases like December 7, 1941,
+								// for cases like December 7 1941
+								{	
+									date = new SimpleDateFormat("MMMM dd yyyy", Locale.ENGLISH).parse(regexData);
+									cal.setTime(date);
+									SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+									simple.setCalendar(cal);
+									transformedData = simple.format(cal.getTime());
+									stream.remove();
+									stream.previous();
+									stream.remove();
+									stream.previous();
+									stream.next();
+									
+								}
+								else // when no specific case is satisfied
+								{
+									stream.previous(); // (A  B| C)
+									stream.previous(); // (A|  B C)
+									stream.previous();
+									stream.next();
 									
 								}
 							
 							}
-							else // if their is a third token and no match pointer is at A  B  C|
+							else // if their is a third token and no match pointer is at A  B  C| (DONE)
 							{
 								regexData = firstToken + " " + secondToken;
+								stream.previous();
+								stream.previous();
+								stream.next(); // get back pointer to (A B | C) for easy removal
 								if (regexData.matches("(?i)([0-9]{1,4}\\s(bc|ad))")) // for cases like 84 BC
+									// remove if match occurs
 								{
 									date = new SimpleDateFormat("yyyy G", Locale.ENGLISH).parse(regexData);
 									cal.setTime(date);
@@ -663,40 +706,80 @@ class DatesFilter extends TokenFilter
 									{
 										transformedData = simple.format(cal.getTime());
 									}
-
-									
+									stream.remove();
+									stream.previous();
+									stream.next();
 								}
-								else if (regexData.matches("(?i)([0-1]?[0-9]:[0-6]?[0-9]\\s(am|pm)\\.)"))
+								
+								else if (regexData.matches("(?i)([0-1]?[0-9]:[0-6]?[0-9]\\s(am|pm)\\.)")) // for cases like 10:15 am.
 								{
 									date = new SimpleDateFormat("hh:mm a", Locale.ENGLISH).parse(regexData);
 									cal.setTime(date);
 									SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
 									simple.setCalendar(cal);
 									transformedData = simple.format(cal.getTime()) + ".";
+									stream.remove();
+									stream.previous();
+									stream.next();
 									
 								}
-								else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sep|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(mar)(ch)?|may|(jun)(e)?|(jul)(y)?))\\s[0-3]?[0-9]"))
-								{	
+								
+								else if (regexData.matches("(?i)([0-1]?[0-9]:[0-6]?[0-9]\\s(am|pm))")) // for cases like 10:15 am (w/o period)
+								{
+									date = new SimpleDateFormat("hh:mm a", Locale.ENGLISH).parse(regexData);
+									cal.setTime(date);
+									SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
+									simple.setCalendar(cal);
+									transformedData = simple.format(cal.getTime());
+									stream.remove(); // pointer location is (A |)
+									stream.previous();
+									stream.next();
+								}
+								
+								
+								else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2}")) // for cases like April 11
+								{
 									date = new SimpleDateFormat("MMMM dd", Locale.ENGLISH).parse(regexData);
 									cal.setTime(date);
 									cal.set(Calendar.YEAR, 1900);
 									SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
 									simple.setCalendar(cal);
 									transformedData = simple.format(cal.getTime());
-									
+									stream.remove();
+									stream.previous();
+									stream.next();
 								}
-								stream.previous();
-								stream.previous();
-								stream.remove();
-								stream.previous();
+								
+								else if (regexData.matches("[0-9]{1,2}\\s((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))")) // for cases like 11 March
+								{
+									date = new SimpleDateFormat("dd MMMM", Locale.ENGLISH).parse(regexData);
+									cal.setTime(date);
+									cal.set(Calendar.YEAR, 1900);
+									SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+									simple.setCalendar(cal);
+									transformedData = simple.format(cal.getTime());
+									stream.remove();
+									stream.previous();
+									stream.next();
+								}
+								
+								else // if none of the cases match
+								{
+									stream.previous();
+									stream.previous();
+									stream.next();
+								}
+								
 								
 							} // end of ELSE for pointer with at end of third token but the term is a 2 token one
 						}
 						
-						else // if there is no third token pointer is at A  B | C
+						else // if there is no third token pointer is at (A  B |) 
+							// match all the two token rules (DONE)
 						{
 						regexData = firstToken + " " + secondToken;
 						if (regexData.matches("(?i)([0-9]{1,4}\\s(bc|ad))")) // for cases like 84 BC
+							// remove if match occurs
 						{
 							date = new SimpleDateFormat("yyyy G", Locale.ENGLISH).parse(regexData);
 							cal.setTime(date);
@@ -710,19 +793,38 @@ class DatesFilter extends TokenFilter
 							{
 								transformedData = simple.format(cal.getTime());
 							}
-							
-							
+							stream.remove();
+							stream.previous();
+							stream.next();
 						}
-						else if (regexData.matches("(?i)([0-1]?[0-9]:[0-6]?[0-9]\\s(am|pm)\\.)"))
+						
+						else if (regexData.matches("(?i)([0-1]?[0-9]:[0-6]?[0-9]\\s(am|pm)\\.)")) // for cases like 10:15 am.
 						{
 							date = new SimpleDateFormat("hh:mm a", Locale.ENGLISH).parse(regexData);
 							cal.setTime(date);
 							SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
 							simple.setCalendar(cal);
 							transformedData = simple.format(cal.getTime()) + ".";
+							stream.remove();
+							stream.previous();
+							stream.next();
 							
 						}
-						else if (regexData.matches("(((jan|feb)(.*)(ary)?)|((sep|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((mar)(ch)?)|may|((jun)(e)?)|((jul)(y)?)))\\s[0-3]?[0-9]"))
+						
+						else if (regexData.matches("(?i)([0-1]?[0-9]:[0-6]?[0-9]\\s(am|pm))")) // for cases like 10:15 am (w/o period)
+						{
+							date = new SimpleDateFormat("hh:mm a", Locale.ENGLISH).parse(regexData);
+							cal.setTime(date);
+							SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
+							simple.setCalendar(cal);
+							transformedData = simple.format(cal.getTime());
+							stream.remove(); // pointer location is (A |)
+							stream.previous();
+							stream.next();
+						}
+						
+						
+						else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))\\s[0-9]{1,2}")) // for cases like April 11
 						{
 							date = new SimpleDateFormat("MMMM dd", Locale.ENGLISH).parse(regexData);
 							cal.setTime(date);
@@ -730,15 +832,36 @@ class DatesFilter extends TokenFilter
 							SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
 							simple.setCalendar(cal);
 							transformedData = simple.format(cal.getTime());
-							
+							stream.remove();
+							stream.previous();
+							stream.next();
 						}
-						stream.previous();
-						stream.remove();
-						stream.previous();
+						
+						else if (regexData.matches("[0-9]{1,2}\\s((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|((march))|may|((jun)(e)?)|((jul)(y)?)))")) // for cases like 11 March
+						{
+							date = new SimpleDateFormat("dd MMMM", Locale.ENGLISH).parse(regexData);
+							cal.setTime(date);
+							cal.set(Calendar.YEAR, 1900);
+							SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+							simple.setCalendar(cal);
+							transformedData = simple.format(cal.getTime());
+							stream.remove();
+							stream.previous();
+							stream.next();
+						}
+						
+						else // if none of the cases match
+						{
+							stream.previous();
+							stream.previous();
+							stream.next();
+						}
+						
+						
 						}
 					}
 					else // in case the second token pattern doesnt match - pointer is A  B | C
-						// match all the one token rules
+						// match all the one token rules (DONE)
 					{
 						regexData = firstToken;
 						if (regexData.matches("[0-9]{4}")) // for cases like 1948
@@ -748,16 +871,47 @@ class DatesFilter extends TokenFilter
 							SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
 							simple.setCalendar(cal);
 							transformedData = simple.format(cal.getTime());
+							
 						}
-						else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am)\\.?)")) // for cases like 5:15PM.
+						
+						else if (regexData.matches("[0-9]{2}")) // for cases like 31
+						{
+							date = new SimpleDateFormat("dd", Locale.ENGLISH).parse(regexData);
+							cal.setTime(date);
+							cal.set(Calendar.YEAR, 1900);
+							SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+							simple.setCalendar(cal);
+							transformedData = simple.format(cal.getTime());
+						}
+						
+						else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am)\\.)")) // for cases like 5:15PM.
 						{
 							date = new SimpleDateFormat("hh:mma", Locale.ENGLISH).parse(regexData);
 							cal.setTime(date);
 							SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
 							simple.setCalendar(cal);
-							transformedData = simple.format(cal.getTime()) + ".";
+							transformedData = simple.format(cal.getTime()) + ".";	
 						}
-						else if (regexData.matches("((?i)[0-9]{1,}(ad|bc)\\.)")) // for cases like 847AD
+						
+						else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am))")) // for cases like 5:15PM (w/o period)
+						{
+							date = new SimpleDateFormat("hh:mma", Locale.ENGLISH).parse(regexData);
+							cal.setTime(date);
+							SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
+							simple.setCalendar(cal);
+							transformedData = simple.format(cal.getTime());	
+						}
+						
+						else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9])")) // for cases like 5:15 (w/o period)
+						{
+							date = new SimpleDateFormat("hh:mm", Locale.ENGLISH).parse(regexData);
+							cal.setTime(date);
+							SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
+							simple.setCalendar(cal);
+							transformedData = simple.format(cal.getTime());	
+						}
+						
+						else if (regexData.matches("((?i)[0-9]{1,}(ad|bc)\\.)")) // for cases like 847AD.
 						{
 							date = new SimpleDateFormat("yyyyG", Locale.ENGLISH).parse(regexData);
 							cal.setTime(date);
@@ -765,10 +919,21 @@ class DatesFilter extends TokenFilter
 							simple.setCalendar(cal);
 							transformedData = simple.format(cal.getTime()) + ".";
 						}
-						else if (regexData.matches("[0-9]{4}(-)[0-9]{2}\\.")) // for cases like 2011-12
-						{	
+						
+						else if (regexData.matches("((?i)[0-9]{1,}(ad|bc))")) // for cases like 847AD
+						{
+							date = new SimpleDateFormat("yyyyG", Locale.ENGLISH).parse(regexData);
+							cal.setTime(date);
+							SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+							simple.setCalendar(cal);
+							transformedData = simple.format(cal.getTime());
+						}
+						
+						else if (regexData.matches("[0-9]{4}(-)[0-9]{2}\\.")) // for cases like 2011-12.
+						{
 							String[] twoyears;
 							twoyears = regexData.split("-");
+							
 							
 							date = new SimpleDateFormat("yyyy", Locale.ENGLISH).parse(twoyears[0]);
 							cal.setTime(date);
@@ -781,10 +946,45 @@ class DatesFilter extends TokenFilter
 							simple = new SimpleDateFormat("yyyyMMdd");
 							simple.setCalendar(cal);
 							twoyears[1] = simple.format(cal.getTime());
-							transformedData = twoyears[0] + "-" + twoyears[1] + ".";
+							transformedData = twoyears[0] + "-" + twoyears[1] + ".";	
 						}
+						
+						else if (regexData.matches("[0-9]{4}(-)[0-9]{2}")) // for cases like 2011-12 (w/o period)
+						{
+							String[] twoyears;
+							twoyears = regexData.split("-");
+							
+							
+							date = new SimpleDateFormat("yyyy", Locale.ENGLISH).parse(twoyears[0]);
+							cal.setTime(date);
+							SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+							simple.setCalendar(cal);
+							twoyears[0] = simple.format(cal.getTime());
+							
+							date = new SimpleDateFormat("yy", Locale.ENGLISH).parse(twoyears[1]);
+							cal.setTime(date);
+							simple = new SimpleDateFormat("yyyyMMdd");
+							simple.setCalendar(cal);
+							twoyears[1] = simple.format(cal.getTime());
+							transformedData = twoyears[0] + "-" + twoyears[1];	
+						}
+						
+						else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(march)|may|(aug(ust)?)|(jun)(e)?|(jul)(y)?))")) // for cases like January
+						{	
+							
+							date = new SimpleDateFormat("MMMM", Locale.ENGLISH).parse(regexData);
+							cal.setTime(date);
+							cal.set(Calendar.YEAR, 1900);
+							SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+							simple.setCalendar(cal);
+							transformedData = simple.format(cal.getTime());	
+						}
+						
 						stream.previous();
 						stream.previous();
+						stream.next();
+						
+						
 						
 					}
 				}
@@ -801,25 +1001,63 @@ class DatesFilter extends TokenFilter
 						transformedData = simple.format(cal.getTime());
 						
 					}
-					else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am)\\.?)")) // for cases like 5:15PM.
+					
+					else if (regexData.matches("[0-9]{2}")) // for cases like 31
+					{
+						date = new SimpleDateFormat("dd", Locale.ENGLISH).parse(regexData);
+						cal.setTime(date);
+						cal.set(Calendar.YEAR, 1900);
+						SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+						simple.setCalendar(cal);
+						transformedData = simple.format(cal.getTime());
+					}
+					
+					else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am)\\.)")) // for cases like 5:15PM.
 					{
 						date = new SimpleDateFormat("hh:mma", Locale.ENGLISH).parse(regexData);
 						cal.setTime(date);
 						SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
 						simple.setCalendar(cal);
-						transformedData = simple.format(cal.getTime()) + ".";
-						
+						transformedData = simple.format(cal.getTime()) + ".";	
 					}
-					else if (regexData.matches("((?i)[0-9]{1,}(ad|bc)\\.)")) // for cases like 847AD
+					
+					else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9](pm|am))")) // for cases like 5:15PM (w/o period)
+					{
+						date = new SimpleDateFormat("hh:mma", Locale.ENGLISH).parse(regexData);
+						cal.setTime(date);
+						SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
+						simple.setCalendar(cal);
+						transformedData = simple.format(cal.getTime());	
+					}
+					
+					else if (regexData.matches("((?i)[0-1]?[0-9]:[0-6]?[0-9])")) // for cases like 5:15 (w/o period)
+					{
+						date = new SimpleDateFormat("hh:mm", Locale.ENGLISH).parse(regexData);
+						cal.setTime(date);
+						SimpleDateFormat simple = new SimpleDateFormat("HH:mm:ss");
+						simple.setCalendar(cal);
+						transformedData = simple.format(cal.getTime());	
+					}
+					
+					else if (regexData.matches("((?i)[0-9]{1,}(ad|bc)\\.)")) // for cases like 847AD.
 					{
 						date = new SimpleDateFormat("yyyyG", Locale.ENGLISH).parse(regexData);
 						cal.setTime(date);
 						SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
 						simple.setCalendar(cal);
 						transformedData = simple.format(cal.getTime()) + ".";
-						
 					}
-					else if (regexData.matches("[0-9]{4}(-)[0-9]{2}\\.")) // for cases like 2011-12
+					
+					else if (regexData.matches("((?i)[0-9]{1,}(ad|bc))")) // for cases like 847AD
+					{
+						date = new SimpleDateFormat("yyyyG", Locale.ENGLISH).parse(regexData);
+						cal.setTime(date);
+						SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+						simple.setCalendar(cal);
+						transformedData = simple.format(cal.getTime());
+					}
+					
+					else if (regexData.matches("[0-9]{4}(-)[0-9]{2}\\.")) // for cases like 2011-12.
 					{
 						String[] twoyears;
 						twoyears = regexData.split("-");
@@ -836,15 +1074,48 @@ class DatesFilter extends TokenFilter
 						simple = new SimpleDateFormat("yyyyMMdd");
 						simple.setCalendar(cal);
 						twoyears[1] = simple.format(cal.getTime());
-						transformedData = twoyears[0] + "-" + twoyears[1] + ".";
-						
+						transformedData = twoyears[0] + "-" + twoyears[1] + ".";	
 					}
+					
+					else if (regexData.matches("[0-9]{4}(-)[0-9]{2}")) // for cases like 2011-12 (w/o period)
+					{
+						String[] twoyears;
+						twoyears = regexData.split("-");
+						
+						
+						date = new SimpleDateFormat("yyyy", Locale.ENGLISH).parse(twoyears[0]);
+						cal.setTime(date);
+						SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+						simple.setCalendar(cal);
+						twoyears[0] = simple.format(cal.getTime());
+						
+						date = new SimpleDateFormat("yy", Locale.ENGLISH).parse(twoyears[1]);
+						cal.setTime(date);
+						simple = new SimpleDateFormat("yyyyMMdd");
+						simple.setCalendar(cal);
+						twoyears[1] = simple.format(cal.getTime());
+						transformedData = twoyears[0] + "-" + twoyears[1];	
+					}
+					
+					else if (regexData.matches("((?i)((jan|feb)(.*)(ary)?)|((sept|oct|nov|dec)(.*)(ber)?)|((apr)(il)?|(march)|may|(aug(ust)?)|(jun)(e)?|(jul)(y)?))")) // for cases like January
+					{	
+						
+						date = new SimpleDateFormat("MMMM", Locale.ENGLISH).parse(regexData);
+						cal.setTime(date);
+						cal.set(Calendar.YEAR, 1900);
+						SimpleDateFormat simple = new SimpleDateFormat("yyyyMMdd");
+						simple.setCalendar(cal);
+						transformedData = simple.format(cal.getTime());	
+					}
+					
+					
+					
 				}
 				if (transformedData.equals("") == false)
 				{
 				stream.getCurrent().setTermText(transformedData);
 				}
-				stream.next();
+				//stream.next();
 			}
 			
 			return true;
@@ -916,10 +1187,131 @@ class PorterStemmerFilter extends TokenFilter {
 class StopwordsFilter extends TokenFilter {
 	
 	String temp;
+	HashMap<String, Boolean> stopwordsList;
 	
 	public StopwordsFilter(TokenStream stream)
 	{
 		super(stream);
+		stopwordsList = new HashMap<String, Boolean>();
+		stopwordsList.put("ever", true);
+		stopwordsList.put("every", true);
+		stopwordsList.put("for", true);
+		stopwordsList.put("from", true);
+		stopwordsList.put("get", true);
+		stopwordsList.put("got", true);
+		stopwordsList.put("had", true);
+		stopwordsList.put("has", true);
+		stopwordsList.put("have", true);
+		stopwordsList.put("he", true);
+		stopwordsList.put("her", true);
+		stopwordsList.put("hers", true);
+		stopwordsList.put("him", true);
+		stopwordsList.put("his", true);
+		stopwordsList.put("how", true);
+		stopwordsList.put("however", true);
+		stopwordsList.put("i", true);
+		stopwordsList.put("if", true);
+		stopwordsList.put("in", true);
+		stopwordsList.put("into", true);
+		stopwordsList.put("is", true);
+		stopwordsList.put("it", true);
+		stopwordsList.put("its", true);
+		stopwordsList.put("just", true);
+		stopwordsList.put("least", true);
+		stopwordsList.put("let", true);
+		stopwordsList.put("like", true);
+		stopwordsList.put("likely", true);
+		stopwordsList.put("may", true);
+		stopwordsList.put("me", true);
+		stopwordsList.put("might", true);
+		stopwordsList.put("most", true);
+		stopwordsList.put("must", true);
+		stopwordsList.put("my", true);
+		stopwordsList.put("neither", true);
+		stopwordsList.put("no", true);
+		stopwordsList.put("nor", true);
+		stopwordsList.put("not", true);
+		stopwordsList.put("of", true);
+		stopwordsList.put("off", true);
+		stopwordsList.put("often", true);
+		stopwordsList.put("on", true);
+		stopwordsList.put("only", true);
+		stopwordsList.put("or", true);
+		stopwordsList.put("other", true);
+		stopwordsList.put("our", true);
+		stopwordsList.put("own", true);
+		stopwordsList.put("rather", true);
+		stopwordsList.put("said", true);
+		stopwordsList.put("say", true);
+		stopwordsList.put("says", true);
+		stopwordsList.put("she", true);
+		stopwordsList.put("should", true);
+		stopwordsList.put("since", true);
+		stopwordsList.put("so", true);
+		stopwordsList.put("some", true);
+		stopwordsList.put("than", true);
+		stopwordsList.put("that", true);
+		stopwordsList.put("the", true);
+		stopwordsList.put("their", true);
+		stopwordsList.put("them", true);
+		stopwordsList.put("then", true);
+		stopwordsList.put("there", true);
+		stopwordsList.put("these", true);
+		stopwordsList.put("they", true);
+		stopwordsList.put("this", true);
+		stopwordsList.put("tis", true);
+		stopwordsList.put("to", true);
+		stopwordsList.put("too", true);
+		stopwordsList.put("twas", true);
+		stopwordsList.put("us", true);
+		stopwordsList.put("wants", true);
+		stopwordsList.put("was", true);
+		stopwordsList.put("we", true);
+		stopwordsList.put("were", true);
+		stopwordsList.put("what", true);
+		stopwordsList.put("when", true);
+		stopwordsList.put("where", true);
+		stopwordsList.put("which", true);
+		stopwordsList.put("while", true);
+		stopwordsList.put("who", true);
+		stopwordsList.put("whom", true);
+		stopwordsList.put("why", true);
+		stopwordsList.put("will", true);
+		stopwordsList.put("with", true);
+		stopwordsList.put("would", true);
+		stopwordsList.put("yet", true);
+		stopwordsList.put("you", true);
+		stopwordsList.put("your", true);
+		stopwordsList.put("a", true);
+		stopwordsList.put("able" , true);
+		stopwordsList.put("about" , true);
+		stopwordsList.put("across" , true);
+		stopwordsList.put("after", true);
+		stopwordsList.put( "all" , true);
+		stopwordsList.put("almost" , true);
+		stopwordsList.put("also" , true);
+		stopwordsList.put("am" , true);
+		stopwordsList.put("among" , true);
+		stopwordsList.put( "an" , true);
+		stopwordsList.put("and" , true);
+		stopwordsList.put("any" , true);
+		stopwordsList.put("are" , true);
+		stopwordsList.put("as" , true);
+		stopwordsList.put( "at" , true);
+		stopwordsList.put("be" , true);
+		stopwordsList.put("because" , true);
+		stopwordsList.put("been" , true);
+		stopwordsList.put("but" , true);
+		stopwordsList.put( "by" , true);
+		stopwordsList.put("can" , true);
+		stopwordsList.put("cannot" , true);
+		stopwordsList.put("could" , true);
+		stopwordsList.put("dear", true);
+		stopwordsList.put("did" , true);
+		stopwordsList.put("do" , true);
+		stopwordsList.put("does" , true);
+		stopwordsList.put("either" , true);
+		stopwordsList.put("else", true);
 	}
 	
 	public TokenStream getStream(){
@@ -932,38 +1324,15 @@ class StopwordsFilter extends TokenFilter {
 		if(stream.hasNext())
 		{	
 			stream.next();
-			temp = stream.getCurrent().getTermText();
-				
-			if (temp.equals("a")|| 	temp.equals("able")|| 	temp.equals("about")|| 	temp.equals("across")|| 	temp.equals("after")
-				|| temp.equals("all")|| 	temp.equals("almost")|| 	temp.equals("also")|| 	temp.equals("am")|| 	temp.equals("among") 
-				|| temp.equals("an")|| 	temp.equals("and")|| 	temp.equals("any")|| 	temp.equals("are")|| 	temp.equals("as") 	
-				|| temp.equals("at")|| 	temp.equals("be")|| 	temp.equals("because")|| 	temp.equals("been")|| 	temp.equals("but") 	
-				|| temp.equals("by")|| 	temp.equals("can")|| 	temp.equals("cannot")|| 	temp.equals("could")|| 	temp.equals("dear")
-				|| 	temp.equals("did")|| 	temp.equals("do")|| 	temp.equals("does")|| 	temp.equals("either")|| 	temp.equals("else")
-				|| 	temp.equals("ever")|| 	temp.equals("every")|| 	temp.equals("for")|| 	temp.equals("from")|| 	temp.equals("get")
-				|| 	temp.equals("got")|| 	temp.equals("had")|| 	temp.equals("has")|| 	temp.equals("have")|| 	temp.equals("he")
-				|| 	temp.equals("her")|| 	temp.equals("hers")|| 	temp.equals("him")|| 	temp.equals("his")|| 	temp.equals("how")
-				|| 	temp.equals("however")|| 	temp.equals("i")|| 	temp.equals("if")|| 	temp.equals("in")|| 	temp.equals("into")
-				|| 	temp.equals("is")|| 	temp.equals("it")|| 	temp.equals("its")|| 	temp.equals("just")|| 	temp.equals("least")
-				|| 	temp.equals("let")|| 	temp.equals("like")|| 	temp.equals("likely")|| 	temp.equals("may")|| 	temp.equals("me")
-				|| 	temp.equals("might")|| 	temp.equals("most")|| 	temp.equals("must")|| 	temp.equals("my")|| 	temp.equals("neither")
-				|| 	temp.equals("no")|| 	temp.equals("nor")|| 	temp.equals("not")|| 	temp.equals("of")|| 	temp.equals("off")
-				|| 	temp.equals("often")|| 	temp.equals("on")|| 	temp.equals("only")|| 	temp.equals("or")|| 	temp.equals("other")
-				|| 	temp.equals("our")|| 	temp.equals("own")|| 	temp.equals("rather")|| 	temp.equals("said")|| 	temp.equals("say")
-				|| 	temp.equals("says")|| 	temp.equals("she")|| 	temp.equals("should")|| 	temp.equals("since")|| 	temp.equals("so")
-				|| 	temp.equals("some")|| 	temp.equals("than")|| 	temp.equals("that")|| 	temp.equals("the")|| 	temp.equals("their")
-				|| 	temp.equals("them")|| 	temp.equals("then")|| 	temp.equals("there")|| 	temp.equals("these")|| 	temp.equals("they")
-				|| 	temp.equals("this")|| 	temp.equals("tis")|| 	temp.equals("to")|| 	temp.equals("too")|| 	temp.equals("twas")
-				|| 	temp.equals("us")|| 	temp.equals("wants")|| 	temp.equals("was")|| 	temp.equals("we")|| 	temp.equals("were")
-				|| 	temp.equals("what")|| 	temp.equals("when")|| 	temp.equals("where")|| 	temp.equals("which")|| 	temp.equals("while")
-				|| 	temp.equals("who")|| 	temp.equals("whom")|| 	temp.equals("why")|| 	temp.equals("will")|| 	temp.equals("with")
-				|| 	temp.equals("would")|| 	temp.equals("yet")|| 	temp.equals("you")|| 	temp.equals("your"))
+			temp = stream.getCurrent().getTermText().toLowerCase();
+			
+			if(stopwordsList.containsKey(temp))
 			{
 				stream.remove();
 			}
-		
+			
 				
-				return true;
+			return true;
 		}
 		else
 		{

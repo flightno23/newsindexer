@@ -75,7 +75,7 @@ public class Runner {
 			writer.close();
 			IndexReader reader = new IndexReader(indexDir, IndexType.TERM);
 			
-			System.out.println(reader.getTopK(10));
+			System.out.println(reader.getTopK(50));
 			
 			long end = System.currentTimeMillis();
 			long time = (end - start) / 1000;

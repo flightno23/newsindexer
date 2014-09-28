@@ -129,6 +129,7 @@ public class IndexWriter extends Token implements Serializable{
 		// Local Variables of method addDocument
 		String fileID , categoryFile;
 		
+		
 		// Linked List structure to generate postings
 		
 		
@@ -152,6 +153,9 @@ public class IndexWriter extends Token implements Serializable{
 		
 		if (d.getField(FieldNames.CATEGORY) != null)
 		{	
+			if (d.getField(FieldNames.CATEGORY)[0].trim().equals("") == false)
+			{
+				
 			categoryFile = d.getField(FieldNames.CATEGORY)[0];
 		// if the category is already present, get the category ID
 			if (categoryDictionary.containsKey(categoryFile))
@@ -185,40 +189,89 @@ public class IndexWriter extends Token implements Serializable{
 				postingsListCategory.add(element);
 				this.categoryIndex.put(idCat, postingsListCategory);
 			}
+			
+			}
 		}
 		
 		
 		// DONE with the category index, now moving on to indexing TITLE, CONTENT, AUTHORORG 
 		// together into the term index for the given DOCUMENT
 		
+		
+		
 		if (d.getField(FieldNames.TITLE) != null)
 		{
-			analyzeField(FieldNames.TITLE, d.getField(FieldNames.TITLE)[0], idFile);
+			if (d.getField(FieldNames.TITLE)[0].trim().equals(""))
+			{
+				
+			}
+			else
+			{
+				analyzeField(FieldNames.TITLE, d.getField(FieldNames.TITLE)[0], idFile);
+			}
+			
 		}
 		
 		if (d.getField(FieldNames.CONTENT) != null)
 		{
-			analyzeField(FieldNames.CONTENT, d.getField(FieldNames.CONTENT)[0], idFile);
+			if (d.getField(FieldNames.CONTENT)[0].trim().equals(""))
+			{
+				
+			}
+			else
+			{
+				analyzeField(FieldNames.CONTENT, d.getField(FieldNames.CONTENT)[0], idFile);
+			}
+			
 		}
 		
 		if (d.getField(FieldNames.PLACE) != null)
-		{
-			analyzeField(FieldNames.PLACE, d.getField(FieldNames.PLACE)[0], idFile);
+		{	
+			if (d.getField(FieldNames.PLACE)[0].trim().equals(""))
+			{
+				
+			}
+			else
+			{
+				analyzeField(FieldNames.PLACE, d.getField(FieldNames.PLACE)[0], idFile);
+			}
+			
 		}
 		
 		if (d.getField(FieldNames.NEWSDATE) != null)
-		{
+		{	
+			if (d.getField(FieldNames.NEWSDATE)[0].trim().equals(""))
+			{
+				
+			}
+			else
+			{
 			analyzeField(FieldNames.NEWSDATE, d.getField(FieldNames.NEWSDATE)[0], idFile);
+			}
 		}
 		
-		if (d.getField(FieldNames.AUTHORORG) != null)
+		if (d.getField(FieldNames.AUTHORORG) != null )
 		{
+			if (d.getField(FieldNames.AUTHORORG)[0].trim().equals(""))
+			{
+				
+			}
+			else
+			{
 			analyzeField(FieldNames.AUTHORORG, d.getField(FieldNames.AUTHORORG)[0], idFile);
+			}
 		}
 		
-		if (d.getField(FieldNames.AUTHOR) != null)
-		{
+		if (d.getField(FieldNames.AUTHOR) != null )
+		{	
+			if (d.getField(FieldNames.AUTHOR)[0].trim().equals(""))
+			{
+				
+			}
+			else
+			{
 			analyzeField(FieldNames.AUTHOR, d.getField(FieldNames.AUTHOR), idFile);
+			}
 		}
 		
 		
@@ -325,6 +378,10 @@ public class IndexWriter extends Token implements Serializable{
 				while (tstream.hasNext()) {
 					t = tstream.next();
 					tokenText = t.getTermText();
+					if (tokenText.equals("March"))
+					{
+						System.out.println(tstream.toString());
+					}
 
 					int tokenNo;
 					// create a mapping in the term dictionary , if it already exists get the mapping

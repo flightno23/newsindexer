@@ -57,7 +57,6 @@ public class Parser {
 		// System.out.println(filename);
 		// throw an exception if the file is blank, junk or null
 		if (fileCat[0] == null){
-			System.out.println(filename);
 			throw new ParserException();
 		}
 		d.setField(FieldNames.CATEGORY, fileCat[0]);
@@ -171,20 +170,15 @@ public class Parser {
 			
 		}
 		catch(FileNotFoundException e){
-			System.out.println("File not found");
 			throw new ParserException();
 			
 		}
 
 		catch(IOException e){
-			System.out.println("An I/O Error Occured");
 			throw new ParserException();
 		}
 		
 		catch(Exception e){
-			System.out.println(indexPos);
-			System.out.println(news.toString());
-			System.out.println(filename);
 			e.printStackTrace();
 			
 		}
@@ -253,7 +247,6 @@ public class Parser {
     		}
     		
     	}
-    	System.out.println(Arrays.toString(fileCatReturn));
     	return fileCatReturn;
 	}
 	

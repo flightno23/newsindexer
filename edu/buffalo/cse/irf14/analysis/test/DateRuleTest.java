@@ -26,6 +26,18 @@ public class DateRuleTest extends TFRuleBaseTest {
 								"actress." },
 						runTest(TokenFilterType.DATE, "Vidya Balan born 1 January "
 								+ "1978 is an Indian actress."));
+				
+				assertArrayEquals(
+						new String[] { "Vidya", "Balan", "born",
+								"19000325", "is", "an", "Indian",
+								"actress." },
+						runTest(TokenFilterType.DATE, "Vidya Balan born March "
+								+ " 25 is an Indian actress."));
+				
+				assertArrayEquals(
+						new String[] { "20140325"},
+						runTest(TokenFilterType.DATE, "March 25 2014"));
+				
 				assertArrayEquals(
 						new String[] { "President", "Franklin", "D.",
 								"Roosevelt", "to", "proclaim", "19411207,",
