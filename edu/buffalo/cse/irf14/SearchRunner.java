@@ -1,7 +1,10 @@
 package edu.buffalo.cse.irf14;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.PrintStream;
@@ -15,6 +18,8 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+
 
 import edu.buffalo.cse.irf14.analysis.*;
 import edu.buffalo.cse.irf14.document.FieldNames;
@@ -49,6 +54,16 @@ public class SearchRunner {
 	public HashMap<Integer, LinkedList<Postings>> authorIndex;
 	public HashMap<Integer, LinkedList<Postings>> placeIndex;
 	private String defaultOperator;
+	private HashMap<String, Double> normalizedIndex;
+	
+	ArrayList<DocDetails> docsRelevancy;
+	
+	String corpusDir;
+	PrintStream stream;
+	ArrayList<eModeRead> eModeInput;
+	boolean eModeTrue = false;
+	long startTime;
+	long endTime;
 	
 	
 	/**
@@ -61,7 +76,9 @@ public class SearchRunner {
 	public SearchRunner(String indexDir, String corpusDir, 
 			char mode, PrintStream stream) {
 		//TODO: IMPLEMENT THIS METHOD
-		
+		this.startTime = System.currentTimeMillis();
+		this.corpusDir = corpusDir;
+		this.stream = stream;
 		// CODE TO READ STUFF FROM THE FILE TO BUILD THE INDEXES
 		try
 		{
@@ -97,7 +114,7 @@ public class SearchRunner {
 	        ois = new ObjectInputStream(fis);
 	        this.authorIndex = (HashMap<Integer, LinkedList<Postings>>) ois.readObject();
 	        this.authorDictionary = (HashMap<String, Integer>) ois.readObject();
-	        
+	  
 	        fis.close();
 	        ois.close();
 	        
@@ -107,6 +124,7 @@ public class SearchRunner {
 	        this.fileIDDictionary = (HashMap<String, Integer>) ois.readObject();
 	        this.inverseFileIDDictionary = (HashMap<Integer, String>) ois.readObject();
 	        this.docLengthDictionary = (HashMap<Integer, Integer>) ois.readObject();
+	        this.normalizedIndex = (HashMap<String, Double>) ois.readObject();
 	        
 	        fis.close();
 	        ois.close();
@@ -130,7 +148,10 @@ public class SearchRunner {
 	public void query(String userQuery, ScoringModel model) {
 		//TODO: IMPLEMENT THIS METHOD
 		// Function that chooses the default Operator based on the query
+		this.eModeTrue = false;
 		this.defaultOperator = "OR"; // change this later
+		this.defaultOperator = chooseDefault(userQuery);
+		
 		
 		// Get the query object converted to postfix form
 		Query q;
@@ -141,54 +162,18 @@ public class SearchRunner {
 		LinkedList<String> postfixExpr = q.getPostfixList();
 		treatQuery(postfixExpr);	// treats the query and produces LinkedList<Results> finalList ready for stack evaluation							
 		
-		// computes
-		HashMap<String, ArrayList<Double>> queryMatrix = computeQueryMatrixVSM();
-		
-		for (Map.Entry<String, ArrayList<Double>> entry: queryMatrix.entrySet()){
-			System.out.println(entry.getKey());
-			System.out.println(entry.getValue());
+		if (model == ScoringModel.TFIDF) {
+			evaluateWithTFIDF();
+			// evaluate and print to stream
+			snippetsGeneration(userQuery);
+		} else if (model == ScoringModel.OKAPI) {
+			evaluateWithOkapi();
+			// evaluate and print to stream
+			snippetsGeneration(userQuery);
 		}
 		
-		// finally evaluate the query and generate the final merged postings list that contain terms in the 
-		// query given
-		evaluateQuery();
-		Result finalResult = this.finalList.get(0);
-		ArrayList<DocDetails> docsRelevancy = new ArrayList<DocDetails>();
 		
-		for (Postings documents: finalResult.postingsList) {
-			Map<String, ArrayList<Integer>> termsMap = documents.getTfMap(); 	// get the term: tf matrix of the document
-			double euclidNorm = 0d;	
-			double finalEuclidNorm;
-			for (Map.Entry<String, ArrayList<Integer>> entry: termsMap.entrySet()) {	
-				euclidNorm += Math.pow(entry.getValue().size(), 2d);
-			}
-			
-			finalEuclidNorm = Math.sqrt(euclidNorm);
-			Double scoreDoc = 0d;
-			// Now, to compare and multiply weights to compute VSM weight
-			for (Map.Entry<String, ArrayList<Integer>> entry: termsMap.entrySet()) {	// iterating through the key set again
-				ArrayList<Double> queryInfo = queryMatrix.get(entry.getKey());	// get the queryinfo by doing a lookup on term
-				Double weightQuery = queryInfo.get(0);	// get the weight of query
-				Double weightDoc = entry.getValue().size() / finalEuclidNorm;	// get the normalized weight of the document	
-				scoreDoc += weightQuery * weightDoc;	// multiply the weights
-			}
-			String fileID = this.inverseFileIDDictionary.get(documents.getFileID());	// get the fileID of the document
-			DocDetails doc = new DocDetails(fileID, scoreDoc, documents.getTfMap());	// call the DocDetails class constructor
-			docsRelevancy.add(doc);
-		}
 		
-		// sorting the ArrayList based on the score
-		Collections.sort(docsRelevancy, new Comparator<DocDetails>() {
-			public int compare(DocDetails d1, DocDetails d2) {
-				Double score1 = d1.score;
-				Double score2 = d2.score;
-				return score1.compareTo(score2);
-			}
-		});
-		
-		for (DocDetails d:docsRelevancy) {
-			System.out.println(d.fileID + '\t' + d.score);
-		}
 		
 		
 		
@@ -215,11 +200,7 @@ public class SearchRunner {
 					}
 				}
 				
-				/*// FOR TF TABLE TESTING PURPOSES
-				for (Map.Entry<String, Double> entry: tfTable.entrySet()) {
-					System.out.println(entry.getKey());
-					System.out.println(entry.getValue());
-				}*/
+				
 				
 				
 				HashMap<String, ArrayList<Double>> perTermMap = new HashMap<String, ArrayList<Double>>();
@@ -232,7 +213,7 @@ public class SearchRunner {
 						String term = r.term;
 						// GETTING the df of the term and finally the idf
 						int mapID;
-						double df;
+						double df = 1;
 						double idf;
 						double termFreq;
 						double weight;
@@ -253,7 +234,8 @@ public class SearchRunner {
 								weight = termFreq * idf;
 								doubleList = new ArrayList<Double>();;
 								doubleList.add(weight);
-								doubleList.add(0d);	// 0 as it is the author index
+								doubleList.add(tfTable.get(term));
+								doubleList.add(idf);
 								perTermMap.put(term, doubleList);
 							} 
 							
@@ -267,7 +249,8 @@ public class SearchRunner {
 								weight = termFreq * idf;
 								doubleList = new ArrayList<Double>();;
 								doubleList.add(weight);
-								doubleList.add(1d);	// 0 as it is the category index
+								doubleList.add(tfTable.get(term));
+								doubleList.add(idf);
 								perTermMap.put(term, doubleList);
 								
 							} 
@@ -282,7 +265,8 @@ public class SearchRunner {
 								weight = termFreq * idf;
 								doubleList = new ArrayList<Double>();;
 								doubleList.add(weight);
-								doubleList.add(2d);	// 0 as it is the place index
+								doubleList.add(tfTable.get(term));
+								doubleList.add(idf);
 								perTermMap.put(term, doubleList);
 								
 							} 
@@ -297,7 +281,8 @@ public class SearchRunner {
 								weight = termFreq * idf;
 								doubleList = new ArrayList<Double>();;
 								doubleList.add(weight);
-								doubleList.add(3d);	// 3 as it is the term index
+								doubleList.add(tfTable.get(term));
+								doubleList.add(idf);
 								perTermMap.put(term, doubleList);
 								
 							} 
@@ -310,12 +295,449 @@ public class SearchRunner {
 				return perTermMap;
 	}
 	
+	public void snippetsGeneration(String userQuery){
+		BufferedReader getInfo;
+		DocDetails doc;
+		StringBuffer sb;
+		StringBuffer store = new StringBuffer();
+		try{
+			
+		store.append("Query: " + userQuery);
+		
+		for (int i=0; i < this.docsRelevancy.size(); i++){	// for loop that iterates through the first 10 elements
+			if (i == 10){	// get at the max only 10 results
+				break;
+			}
+			store.append('\n');
+			int rank = i + 1;
+			store.append("RANK: " + rank);
+			store.append('\n');
+			
+			sb = new StringBuffer();
+			doc = this.docsRelevancy.get(i);
+			store.append("FILE ID: " + doc.fileID);
+			store.append('\n');
+			
+			getInfo = new BufferedReader(new FileReader(corpusDir+File.separator+doc.fileID));
+			String temp;
+			while ((temp = getInfo.readLine()) != null)
+			{
+				if(temp.equals(""))
+				{
+					continue;
+				}
+				else
+				{	
+					temp = temp + " ";
+					sb.append(temp);
+				}
+			}
+			getInfo.close();
+			// Obtaining the TITLE of the file
+			int indexPos = 0;
+			Object[] titleInfo = new Object[2];
+			titleInfo = regexTITLE("([^a-z]+)\\s{2,}", sb.toString());
+			
+			// NEW CODE CHANGE -- REMOVE IF CAUSES PROBLEMS
+			if (titleInfo[0].toString().equals("")  & sb.toString().toLowerCase().contains("blah blah"))
+			{	
+				Pattern checkRegex = Pattern.compile("[^a-z]+");
+		    	Matcher regexMatcher = checkRegex.matcher(sb.toString());
+		    	
+		    	if (regexMatcher.find() == true)
+		    	{
+		    		titleInfo[0] = regexMatcher.group(); 
+		    		titleInfo[1] = regexMatcher.end();
+		    		
+		    	}
+		    	
+			}
+			
+	    	
+			String snippetTitle = titleInfo[0].toString().trim();
+			indexPos = (Integer) titleInfo[1];
+			
+			// Getting the Author and Author Org
+			String[] authorList;
+			Object[] resultAuthor = {null, null, null};
+			resultAuthor = regexAuthor("<AUTHOR>(.*)</AUTHOR>", sb.toString());
+		    
+		    if ((Integer) resultAuthor[2] != 0)
+		    {
+		    	indexPos = (Integer) resultAuthor[2];
+		    }
+		    
+		 // Getting the Place and Date
+ 			//resultPlaceDate = regexPlaceDate("\\s{2,}(.+),\\s(?:([A-Z][a-z]+\\s[0-9]{1,})\\s{1,}-)", news.toString());
+		    Object[] resultPlaceDate = {null, null, null};
+		    
+		    resultPlaceDate = regexPlaceDate("\\s{2,}(.+),\\s{1,}(?:((?i)(jan|january|feb|february|mar|march|apr|april|may|june|july|aug|august|sep|september|oct|october|nov|november|dec|december)\\s{1,}[0-9]{1,})\\s{1,}-)", sb.toString());
+ 			
+ 			String snippetContent = "";
+ 		    // getting the content
+ 		    
+ 		    if ((Integer) resultPlaceDate[2] != 0)
+		    {
+		    	indexPos = (Integer) resultPlaceDate[2];
+		    }
+ 		    
+ 		    if (indexPos >= sb.length() - 1)
+ 		    {
+ 		    	// defensive programming
+ 		    }
+ 		    else
+ 		    {
+ 		    snippetContent = sb.substring(indexPos + 1);
+ 		    }
+ 		    
+ 		    store.append("TITLE: " + snippetTitle);
+			store.append('\n');
+			
+ 		    if (snippetContent.length() > 280){
+ 		    	store.append("CONTENT: ..." + snippetContent.substring(0, 280) + "...");
+ 				store.append('\n');
+ 		    } else {
+ 		    	store.append("CONTENT: ..." + snippetContent);
+ 				store.append('\n');
+ 		    }
+ 		   store.append("RELEVANCE SCORE: " + doc.score);
+ 		   store.append('\n');
+ 		   
+ 		   
+			
+		}
+		this.endTime = System.currentTimeMillis();
+		
+	   long queryTime = this.endTime - this.startTime;
+	   
+		   
+	   stream.println("Query Time: " + queryTime + " ms");
+	   stream.println(store.toString());
+		
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	// METHOD that returns the result of treating string with regex and index position
+	public static Object[] regexAuthor(String theRegex, String str2Check)
+	{
+		
+		Object[] authorInfo = {null, null, 0};
+    	String[] authorData = {null,null};
+		Pattern checkRegex = Pattern.compile(theRegex);
+    	Matcher regexMatcher = checkRegex.matcher(str2Check);
+    	
+    	if (regexMatcher.find() == true)
+    	{
+    		if (regexMatcher.group().length() != 0)
+	    	{
+	    		if (regexMatcher.group(1).contains(","))
+				{
+					authorData = regexMatcher.group(1).trim().split(",");
+					authorData[1] = authorData[1].trim();
+				}
+				else
+				{
+					authorData[0] = regexMatcher.group(1);
+				}
+	    		authorInfo[2] = regexMatcher.end();
+	    		
+	    	
+	    		authorInfo[0] = authorData[0].replaceFirst("(?i)by","").trim();
+	    		authorInfo[1] = authorData[1];
+	    	
+	    	}
+    	}
+    	
+    	return authorInfo;
+	}
+	
+	// Get the TITLE and the index of the expression
+	public static Object[] regexTITLE(String theRegex, String str2Check)
+	{
+		Pattern checkRegex = Pattern.compile(theRegex);
+		Matcher regexMatcher = checkRegex.matcher(str2Check);
+		int titleTemp;
+		
+		// declaring and initializing the return type
+		Object[] regexInfo = new Object[2];
+		regexInfo[0] = "";
+		regexInfo[1] = 0;
+		
+		if (regexMatcher.find() == true)
+		{
+			if (regexMatcher.group().length() != 0)
+	    	{	
+	    		if (regexMatcher.group(1).contains("<AUTHOR>"))
+	    		{
+	    			titleTemp = regexMatcher.group(1).indexOf("<AUTHOR>");
+	    			regexInfo[0] = regexMatcher.group(1).substring(0, titleTemp).trim();
+	        		regexInfo[1] = regexMatcher.end();	
+	    		}
+	    		else
+	    		{
+	    			regexInfo[0] = regexMatcher.group(1).trim();
+	        		regexInfo[1] = regexMatcher.end();
+	    		}
+	    		
+	    	}
+		}
+		
+		
+		return regexInfo;
+		
+	}
+	
+	// regex output for PLACE and NEWS DATE
+	public static Object[] regexPlaceDate(String theRegex, String str2Check)
+	{
+		
+		Object[] placeDateInfo = {null, null, 0};
+		Pattern checkRegex = Pattern.compile(theRegex);
+    	Matcher regexMatcher = checkRegex.matcher(str2Check);
+    	int placeTemp;
+    	
+    	if (regexMatcher.find() == true)
+		{
+    		if (regexMatcher.group().length() != 0)
+        	{
+    			if (regexMatcher.group(1).contains("</AUTHOR>"))
+    			{
+    				placeTemp = regexMatcher.group(1).indexOf("</AUTHOR>");
+        			placeDateInfo[0] = regexMatcher.group(1).substring(placeTemp+10).trim();
+    			}
+    			else
+    			{
+    				placeDateInfo[0] = regexMatcher.group(1).trim();
+    			}
+        		
+        		placeDateInfo[1] = regexMatcher.group(2).trim();
+        		placeDateInfo[2] = regexMatcher.end();
+        	
+        	}
+		}
+    	
+    	
+    	return placeDateInfo;
+	}
+	
+	/**
+	 * Evaluating the given boolean expression with TFIDF
+	 */
+	public void evaluateWithTFIDF() {
+				// computes
+				HashMap<String, ArrayList<Double>> queryMatrix = computeQueryMatrixVSM();
+				
+				
+				
+				// finally evaluate the query and generate the final merged postings list that contain terms in the 
+				// query given
+				evaluateQuery();
+				Result finalResult = this.finalList.get(0);
+				this.docsRelevancy = new ArrayList<DocDetails>();
+				
+				
+				for (Postings documents: finalResult.postingsList) {
+					Map<String, ArrayList<Integer>> termsMap = documents.getTfMap(); 	// get the term: tf matrix of the document
+					double euclidNorm = 0d;	
+					double finalEuclidNorm;
+					for (Map.Entry<String, ArrayList<Integer>> entry: termsMap.entrySet()) {	
+						euclidNorm += Math.pow(entry.getValue().size(), 2d);
+					}
+					
+					String fileID = this.inverseFileIDDictionary.get(documents.getFileID());	// get the fileID of the document
+					double weight = this.normalizedIndex.get(fileID);
+					double lengthDoc = this.docLengthDictionary.get(documents.getFileID());
+					
+					finalEuclidNorm = Math.sqrt(euclidNorm);
+					Double scoreDoc = 0d;
+					Double finalScore;
+					Double normalQuery = 0d;
+					for (Map.Entry<String, ArrayList<Integer>> entry: termsMap.entrySet()) {	// iterating through the key set again
+						ArrayList<Double> queryInfo = queryMatrix.get(entry.getKey());	// get the queryinfo by doing a lookup on term
+						Double weightQuery = queryInfo.get(0);	// get the weight of query
+						normalQuery += Math.pow(weightQuery, 2);
+					}
+					normalQuery = Math.sqrt(normalQuery);
+					
+					// Now, to compare and multiply weights to compute VSM weight
+					for (Map.Entry<String, ArrayList<Integer>> entry: termsMap.entrySet()) {	// iterating through the key set again
+						ArrayList<Double> queryInfo = queryMatrix.get(entry.getKey());	// get the queryinfo by doing a lookup on term
+						Double weightQuery = queryInfo.get(0); /// normalQuery;	// get the weight of query
+						Double weightDoc = (double) entry.getValue().size()/ weight;	// get the normalized weight of the document	
+						scoreDoc += (weightQuery * weightDoc); 
+					}
+					
+					finalScore = (scoreDoc * 3) / lengthDoc;
+					
+					
+					
+					
+					DocDetails doc = new DocDetails(fileID, finalScore, documents.getTfMap());	// call the DocDetails class constructor
+					docsRelevancy.add(doc);
+					
+				}
+				
+				// sorting the ArrayList based on the score
+				Collections.sort(docsRelevancy, new Comparator<DocDetails>() {
+					public int compare(DocDetails d1, DocDetails d2) {
+						Double score1 = d1.score;
+						Double score2 = d2.score;
+						return score2.compareTo(score1);
+					}
+				});
+				
+				
+	}
+	
+	/**
+	 * Evaluating the given boolean expression with OKAPI
+	 */
+	public void evaluateWithOkapi() {
+		// computes
+		HashMap<String, ArrayList<Double>> queryMatrix = computeQueryMatrixVSM();
+		
+		
+		// finally evaluate the query and generate the final merged postings list that contain terms in the 
+		// query given
+		evaluateQuery();
+		Result finalResult = this.finalList.get(0);
+		this.docsRelevancy = new ArrayList<DocDetails>();
+		double averageDocLength = (double) this.docLengthDictionary.get(999999);
+		double k1const = 1.2d;
+		double k3const = 1.2d;
+		double bconst = 0.75d;
+		
+		for (Postings documents: finalResult.postingsList) {
+			Map<String, ArrayList<Integer>> termsMap = documents.getTfMap(); 	// get the term: tf matrix of the document
+			
+			double lengthDoc = this.docLengthDictionary.get(documents.getFileID());
+			Double scoreDoc = 0d;
+			// Now, to compare and multiply weights to compute VSM weight
+			for (Map.Entry<String, ArrayList<Integer>> entry: termsMap.entrySet()) {	// iterating through the key set again
+				
+				ArrayList<Double> queryInfo = queryMatrix.get(entry.getKey());	// get the queryinfo by doing a lookup on term
+				Double tfQuery = queryInfo.get(1);	// get the weight of query
+				Double tfDoc = (double) entry.getValue().size();	// tf of the document
+				Double idf = (double) queryInfo.get(2);
+				scoreDoc += ((idf * (k1const + 1) * tfDoc * (k3const + 1) * tfQuery)
+						/((k1const * ((1-bconst) + bconst * (lengthDoc/averageDocLength)) + tfDoc) * (k3const +tfQuery)));
+				
+			}
+			
+			String fileID = this.inverseFileIDDictionary.get(documents.getFileID());	// get the fileID of the document
+			DocDetails doc = new DocDetails(fileID, scoreDoc, documents.getTfMap());	// call the DocDetails class constructor
+			docsRelevancy.add(doc);
+		}
+		
+		// sorting the ArrayList based on the score
+		Collections.sort(docsRelevancy, new Comparator<DocDetails>() {
+			public int compare(DocDetails d1, DocDetails d2) {
+				Double score1 = d1.score;
+				Double score2 = d2.score;
+				return score2.compareTo(score1);
+			}
+		});
+		
+		
+	}
+	
 	/**
 	 * Method to execute queries in E mode
 	 * @param queryFile : The file from which queries are to be read and executed
 	 */
 	public void query(File queryFile) {
 		//TODO: IMPLEMENT THIS METHOD
+		try {
+			this.eModeTrue = true;
+			BufferedReader getInfo;
+			eModeInput = new ArrayList<eModeRead>();
+			int numQueries = 0;
+			getInfo = new BufferedReader(new FileReader(queryFile));
+			String temp;
+			temp = getInfo.readLine(); // reading the first line
+			Pattern p = Pattern.compile("(.+)=([0-9]+)");
+			Matcher m = p.matcher(temp);
+			// getting the number of queries
+			if (m.find() == true) {
+				numQueries = Integer.parseInt(m.group(2));
+			}
+			
+			for (int i=0; i < numQueries; i++) {
+				temp = getInfo.readLine();
+				p = Pattern.compile("(.+):\\{(.+)\\}");
+				m = p.matcher(temp);
+				String queryID = "";
+				String query = "";
+				
+				if (m.find() == true) {
+					queryID = m.group(1);
+					query = m.group(2);
+					System.out.println(queryID);
+					System.out.println(query);
+				}
+				
+				if (queryID.equals("") || query.equals("")){
+					
+				} else {
+					eModeRead queryToPut = new eModeRead(queryID, query);
+					eModeInput.add(queryToPut);
+				}	
+			}
+			
+			getInfo.close();
+			StringBuffer sb = new StringBuffer();
+			int numResults = 0;
+			
+			
+			for (eModeRead queryOne: eModeInput) {
+				String userQuery = queryOne.query;
+				String queryID = queryOne.queryID;
+				Query q;
+				this.defaultOperator = "OR";
+				this.defaultOperator = chooseDefault(userQuery);
+				q = QueryParser.parse(userQuery, this.defaultOperator);
+				q.toString();
+				System.out.println(q.toString());
+				// get the postfix expression and create a set of Result objects based on it
+				LinkedList<String> postfixExpr = q.getPostfixList();
+				treatQuery(postfixExpr);	// treats the query and produces LinkedList<Results> finalList ready for stack evaluation							
+				
+				evaluateWithTFIDF();
+				if (this.docsRelevancy.size() == 0) continue;
+				numResults++;
+				sb.append(queryID+":{");
+				int i=0;
+				for (DocDetails d: this.docsRelevancy) {
+					if (i==10) break;
+					if (i!=0) {
+						sb.append(",");
+					}
+					String fileID = d.fileID;
+					String score = String.format("%.5f", d.score);
+					sb.append(" " + fileID +"#" +score);
+					i++;
+				}
+				sb.append("}");
+				sb.append('\n');
+				//stream.print(sb.toString());
+				
+				
+				
+			}
+			// Get the query object converted to postfix form
+			stream.print("numResults =" + numResults);
+			stream.println();
+			stream.print(sb.toString());
+			stream.close();
+			
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	/**
@@ -417,16 +839,7 @@ public class SearchRunner {
 			
 		}	// END OF WHILE LOOP THAT ITERATES THROUGH RESULT SET
 		
-		// CODE FOR TESTING ONLY
-		/*Result r = this.finalList.get(0);
-		System.out.println(r.postingsList.size());
-		for (Postings p:r.postingsList) {
-			System.out.println(p.getFileID());
-			for (Map.Entry<String, ArrayList<Integer>> entry:p.getTfMap().entrySet()) {
-				System.out.println(entry.getKey());
-				System.out.println(entry.getValue());
-			}
-		}*/
+		
 		
 	}	// END OF METHOD
 	
@@ -466,21 +879,12 @@ public class SearchRunner {
 					intersection = true;	// set intersection to true
 				} 
 			}
-			System.out.println(intersection);
 			if (intersection == false) {	// if no intersection, then add the two Postings to firstPostings list
-				tempPostings.add(two);
-				
+				tempPostings.add(two);	
 			}
 		}
 		
-		// CODE BELOW FOR TESTING ONLY
-		/* for (Postings per:firstPostings) {
-			System.out.println(per.getFileID());
-			for (Map.Entry<String, ArrayList<Integer>> entry: per.getTfMap().entrySet()){
-				System.out.println(entry.getKey());
-				System.out.println(entry.getValue());
-			}
-		}*/
+		
 		
 		first.postingsList = tempPostings;
 		
@@ -513,14 +917,7 @@ public class SearchRunner {
 			}
 		}
 		
-		/* //CODE BELOW FOR TESTING
-		for (Postings per:tempMap) {
-			System.out.println(per.getFileID());
-			for (Map.Entry<String, ArrayList<Integer>> entry: per.getTfMap().entrySet()){
-				System.out.println(entry.getKey());
-				System.out.println(entry.getValue());
-			}
-		}*/
+		
 		
 		first.postingsList = tempMap;	// return the Result Object
 		
@@ -551,15 +948,7 @@ public class SearchRunner {
 			}
 		}
 		
-		/*System.out.println("here"); 
-		 //CODE BELOW FOR TESTING
-		for (Postings per:resultOfNot) {
-			System.out.println(per.getFileID());
-			for (Map.Entry<String, ArrayList<Integer>> entry: per.getTfMap().entrySet()){
-				System.out.println(entry.getKey());
-				System.out.println(entry.getValue());
-			}
-		}*/
+		
 		
 		first.postingsList = resultOfNot;
 		
@@ -710,7 +1099,40 @@ public class SearchRunner {
 		// METHOD STUB FILL THIS
 		// first, split userQuery on spaces
 		// DONT THINK I WILL NEED THIS METHOD
-		return userQuery;
+		String temp1, temp2;
+		String[] tokens = userQuery.split("\\s");
+		String defaultOper = "OR";
+		
+		
+		
+		
+		
+		
+		for(int i=0; i<tokens.length ; i++)
+		{
+			if (i == tokens.length - 1)
+			{
+				break;
+			}
+			
+			
+			temp1 = tokens[i];
+			temp2 = tokens[i+1];
+			
+			// if any one of the tokens are "OR" or "AND" then do nothing
+			if(temp1.equals("OR") || temp1.equals("AND") || temp2.equals("OR") || temp2.equals("AND")
+					|| temp1.equals("NOT") || temp1.equals("(") || temp2.equals(")"))
+			{
+				//DO NOTHING
+			}
+			else
+			{	
+				if (temp2.equals("NOT")){
+					defaultOper = "AND";
+				} 
+			}
+		}
+		return defaultOper;
 	}
 	
 	/**
@@ -791,25 +1213,74 @@ public class SearchRunner {
 			} 
 			// else we need to AND the phrase and return the resulting postings list
 			analyzedList = phrase.split("\\s+");
+			this.term = analyzedList[0];
 			
 			// if even a single term is not in the dictionary then return no posting
 			for (String term:analyzedList){
-				if (termDictionary.containsKey(term)){
-					continue;
-				} else {
-					return;
+				if (index == ResultType.IndexType.TERM) {
+					if (termDictionary.containsKey(term)){
+						continue;
+					} else {
+						return;
+					} 
+				} else if (index == ResultType.IndexType.AUTHOR) {
+					if (authorDictionary.containsKey(term)){
+						continue;
+					} else {
+						return;
+					}
+				} else if (index == ResultType.IndexType.PLACE) {
+					if (placeDictionary.containsKey(term)){
+						continue;
+					} else {
+						return;
+					}
+				} else if (index == ResultType.IndexType.CATEGORY) {
+					if (categoryDictionary.containsKey(term)){
+						continue;
+					} else {
+						return;
+					}
 				}
 			}
 			
+			
+			arrayOfTerms = new ArrayList<LinkedList<Postings>>();
 			// retrieve the postings list for all of the terms and store them in a array list
 			// called arrayOfTerms
-			arrayOfTerms = new ArrayList<LinkedList<Postings>>();
-			for (String term:analyzedList)
-			{
-				termID = termDictionary.get(term);
-				tempList = termIndex.get(termID);
-				arrayOfTerms.add(tempList);
-			}
+			if (index == ResultType.IndexType.TERM){
+				
+				for (String term:analyzedList)
+				{
+					termID = termDictionary.get(term);
+					tempList = termIndex.get(termID);
+					arrayOfTerms.add(tempList);
+				}
+			} else if (index == ResultType.IndexType.AUTHOR) {
+
+				for (String term:analyzedList)
+				{	
+					termID = authorDictionary.get(term);
+					tempList = authorIndex.get(termID);
+					arrayOfTerms.add(tempList);
+				}	
+			}  else if (index == ResultType.IndexType.PLACE) {
+				
+				for (String term:analyzedList)
+				{
+					termID = placeDictionary.get(term);
+					tempList = placeIndex.get(termID);
+					arrayOfTerms.add(tempList);
+				}	
+			}  else if (index == ResultType.IndexType.CATEGORY) {
+				
+				for (String term:analyzedList)
+				{
+					termID = categoryDictionary.get(term);
+					tempList = categoryIndex.get(termID);
+					arrayOfTerms.add(tempList);
+				}	
+			} 
 			
 			// if the analyzed phrase has only one element, then set the postings list as the postings
 			// list of that one element
@@ -844,17 +1315,7 @@ public class SearchRunner {
 				
 			}	// END OF ELSE CASE WHERE MORE THAN ONE TERM EXISTS
 				
-			// Moving on to finding phrase queries out of the result set
-			// use the toConvertMap, iterate through the postings, and choose the postings that 
-			// have proximity of 1
 			
-			/*for (Postings p:toConvertMap) {
-				for (Map.Entry<String, ArrayList<Integer>> entry: p.getTfMap().entrySet()) {
-					System.out.println(p.getFileID());
-					System.out.println(entry.getKey());
-					System.out.println(entry.getValue());
-				}
-			}*/
 			
 			HashMap<String, ArrayList<Integer>> mapToManipulate;
 			Boolean passTest = true;
@@ -891,7 +1352,7 @@ public class SearchRunner {
 				}	// END OF FOR TO ITERATE OVER OTHER TERMS OF LIST
 				
 				if (passTest == true) {
-					check.setTfMapForPhrase(this.term, newTfMap);
+					check.setTfMapForPhrase(analyzedList[0], newTfMap);
 					this.postingsList.add(check);
 				}
 				
@@ -1009,7 +1470,7 @@ class DocDetails {
 		this.fileID = fileID;
 		this.score = score;
 		this.termMap = termMap;
-		
 	}
+	
 }
 
