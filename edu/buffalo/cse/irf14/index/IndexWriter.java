@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -41,6 +42,8 @@ public class IndexWriter extends Token implements Serializable{
 	private HashMap<String, Integer> categoryDictionary;
 	private HashMap<String, Integer> placeDictionary;
 	private HashMap<String, Integer> authorDictionary;
+	private HashMap<Integer, Integer> docLengthDictionary;
+	private HashMap<String, Double> normalizedIndex;
 	
 	// Declaring the various indexes needed
 	private HashMap<Integer, LinkedList<Postings>> termIndex;
@@ -60,35 +63,14 @@ public class IndexWriter extends Token implements Serializable{
 	private HashMap<String, Integer> kPlaceMap;
 	private HashMap<String, Integer> kAuthorMap;
 	
+	// Utility Variables
+	int position = 0;
+	int docLength = 0;
+	int docsParsed = 0;
+	HashMap<String, Integer> tempTfMap;
 	
 	// Inner class postings to store postings information
-	class Postings implements Serializable
-	{
-		private int noOfOccurences = 1;
-		private int fileMappedID;
-		
-		public Postings(int fileID)
-		{
-			this.fileMappedID = fileID; 
-		}
-		
-		public int getOccurences()
-		{
-			return this.noOfOccurences;
-		}
-		
-		public void incrementOccurences()
-		{
-			noOfOccurences++;
-		}
-		
-		public int getFileID()
-		{
-			return this.fileMappedID;
-		}
-		
-		
-	}
+	
 	
 	/**
 	 * Default constructor
@@ -103,10 +85,12 @@ public class IndexWriter extends Token implements Serializable{
 		// Allocating memory on the heap for the Dictionaries
 		inverseFileIDDictionary = new HashMap<Integer, String>();
 		fileIDDictionary = new HashMap<String, Integer>();
+		docLengthDictionary = new HashMap<Integer, Integer>();
 		termDictionary = new HashMap<String, Integer>();
 		categoryDictionary = new HashMap<String, Integer>();
 		placeDictionary = new HashMap<String, Integer>();
 		authorDictionary = new HashMap<String, Integer>();
+		normalizedIndex = new HashMap<String, Double>();
 		
 		// Allocating memory for the indexes (4 in total)
 		termIndex = new HashMap<Integer, LinkedList<Postings>>();
@@ -148,15 +132,29 @@ public class IndexWriter extends Token implements Serializable{
 		
 		
 		// store the new fileID : compressedfileID mapping into the dictionaries
-		this.fileIDDictionary.put(fileID, this.fileIDAssigner);
-		this.inverseFileIDDictionary.put(this.fileIDAssigner, fileID);
-		this.fileIDAssigner++;
+		if (this.fileIDDictionary.containsKey(fileID)) {
+			
+		} else {
+			this.fileIDDictionary.put(fileID, this.fileIDAssigner);
+			this.inverseFileIDDictionary.put(this.fileIDAssigner, fileID);
+			this.fileIDAssigner++;
+		}
+		
 		
 		int idCat;
 		
 		// putting the category id : postings into the category index
 		
 		int idFile = fileIDDictionary.get(fileID);
+		
+		// Storing the length of the document into the dictionary
+		int docLen = d.getDocLength();
+		this.docLengthDictionary.put(idFile, docLen);
+		// updating the utility variables to calculate avg. doc length later
+		this.docLength += docLen;
+		this.docsParsed++;
+		
+		
 		
 		if (d.getField(FieldNames.CATEGORY) != null)
 		{	
@@ -213,8 +211,9 @@ public class IndexWriter extends Token implements Serializable{
 		// DONE with the category index, now moving on to indexing TITLE, CONTENT, AUTHORORG 
 		// together into the term index for the given DOCUMENT
 		
-		
-		
+		// setting the value of position to 1
+		this.position = 0;
+		this.tempTfMap = new HashMap<String, Integer>();
 		if (d.getField(FieldNames.TITLE) != null)
 		{
 			if (d.getField(FieldNames.TITLE)[0].trim().equals(""))
@@ -240,6 +239,10 @@ public class IndexWriter extends Token implements Serializable{
 			}
 			
 		}
+		
+		// resetting the value of position to 1 so that next document will have the pointer back to 1
+		this.position = 0;
+		
 		
 		if (d.getField(FieldNames.PLACE) != null)
 		{	
@@ -290,6 +293,22 @@ public class IndexWriter extends Token implements Serializable{
 			}
 		}
 		
+		// CODE TO CREATE THE FORWARD INDEX
+		int weightNorm = 0;
+		double weightFinal;
+		
+		for (Map.Entry<String, Integer> entry: this.tempTfMap.entrySet()) {
+			weightNorm += Math.pow(entry.getValue(), 2);
+		}
+		
+		weightFinal = Math.sqrt(weightNorm);
+		
+		
+		if (weightFinal != 0){
+			this.normalizedIndex.put(fileID, weightFinal);
+		} else {
+			this.normalizedIndex.put(fileID, 1d);
+		}
 		
 		
 		
@@ -304,8 +323,27 @@ public class IndexWriter extends Token implements Serializable{
 	 */
 	public void close() throws IndexerException {
 		
+		
+		// adding the average doc length entry into the hashmap 
+		this.docLengthDictionary.put(999999, this.docLength/this.docsParsed);
+		/*System.out.println(this.termDictionary.keySet());
+		System.out.println(this.placeDictionary.keySet());
+		System.out.println(this.authorDictionary.keySet());
+		System.out.println(this.categoryDictionary.keySet());
+		for (Map.Entry<String, Integer> entry: this.termDictionary.entrySet()) {
+			System.out.println(entry.getKey() + " " + entry.getValue());
+		}
+		for (Map.Entry<Integer, LinkedList<Postings>> entry: this.termIndex.entrySet()){
+			System.out.println(entry.getKey() + " term");
+			for (Postings p: entry.getValue()) {
+				System.out.println(this.inverseFileIDDictionary.get(p.getFileID()));
+			}
+		}*/
+		
 		//TODO
 		try{
+			
+			
 			// writing term index and dictionary to file
 			FileOutputStream fos = new FileOutputStream(this.indexDirectory+File.separator+"termIndex.ser");
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
@@ -313,7 +351,6 @@ public class IndexWriter extends Token implements Serializable{
 	        oos.writeObject(this.termDictionary);
 	        oos.writeObject(this.kTermMap);
 	        fos.close();
-	        System.out.println(kTermMap.keySet());
 	        
 	        
 	        // writing author index and dictionary to file
@@ -348,9 +385,12 @@ public class IndexWriter extends Token implements Serializable{
 	        oos = new ObjectOutputStream(fos);
 	        oos.writeObject(this.fileIDDictionary);
 	        oos.writeObject(this.inverseFileIDDictionary);
+	        oos.writeObject(this.docLengthDictionary);	// added this dictionary for doc length recently
+	        oos.writeObject(this.normalizedIndex);
 	        fos.close();
 	        
 	        System.out.println("All writes done!!");
+	        
 	        
 	        
 	        
@@ -371,7 +411,7 @@ public class IndexWriter extends Token implements Serializable{
 		Token t;
 		String tokenText;
 		boolean sameStream = false;
-		
+		this.position++;
 		
 
 		if (fn == FieldNames.TITLE || fn == FieldNames.CONTENT
@@ -395,7 +435,14 @@ public class IndexWriter extends Token implements Serializable{
 				while (tstream.hasNext()) {
 					t = tstream.next();
 					tokenText = t.getTermText();
-
+					// creating the forward index
+					if (this.tempTfMap.containsKey(tokenText)){
+						this.tempTfMap.put(tokenText, this.tempTfMap.get(tokenText) + 1);	// increment tf by 1
+					} else {
+						this.tempTfMap.put(tokenText, 1);	// set tf as 1
+					}
+					
+					
 					int tokenNo;
 					// create a mapping in the term dictionary , if it already exists get the mapping
 					if (this.termDictionary.containsKey(tokenText)) {
@@ -420,32 +467,37 @@ public class IndexWriter extends Token implements Serializable{
 					// add the new file to the keys
 					// equivalent postings list
 					if (this.termIndex.containsKey(tokenNo)) {
-
 						postingsListTerm = this.termIndex.get(tokenNo);
 						// scanning through postings list to find if file is
 						// already there
 						// if so, increment the number of occurences of it
+						sameStream = false;
 						for (Postings posting : postingsListTerm) {
 							if (posting.getFileID() == fileID) {
 								posting.incrementOccurences();
+								posting.setTfMap(tokenText, position);	// this adds the position of the term
 								sameStream = true;
 								break;
 							} else {
 								continue;
 							}
 						}
+						
 						if (sameStream == false) {
-							postingsListTerm.add(new Postings(fileID));
+							Postings p = new Postings(fileID);
+							p.setTfMap(tokenText, position);
+							postingsListTerm.add(p);
 							this.termIndex.put(tokenNo, postingsListTerm);
 						}
 
 					} else {
 						postingsListTerm = new LinkedList<Postings>();
 						Postings element = new Postings(fileID);
+						element.setTfMap(tokenText, position);
 						postingsListTerm.add(element);
 						this.termIndex.put(tokenNo, postingsListTerm);
 					}
-
+					this.position++;
 				}
 
 			} catch (TokenizerException e) {
@@ -458,6 +510,7 @@ public class IndexWriter extends Token implements Serializable{
 		if(fn == FieldNames.PLACE) {
 			try {
 				// create a new token stream with the given content
+				// tokenize based on , character and not whitespace
 				Tokenizer tkizer = new Tokenizer();
 				TokenStream tstream = tkizer.consume(content);
 				sameStream = false;
@@ -473,7 +526,14 @@ public class IndexWriter extends Token implements Serializable{
 				while (tstream.hasNext()) {
 					t = tstream.next();
 					tokenText = t.getTermText();
-
+					
+					// creating the forward index
+					if (this.tempTfMap.containsKey(tokenText)){
+						this.tempTfMap.put(tokenText, this.tempTfMap.get(tokenText) + 1);	// increment tf by 1
+					} else {
+						this.tempTfMap.put(tokenText, 1);	// set tf as 1
+					}
+					
 					int tokenNo;
 					// create a mapping in the term dictionary
 					if (this.placeDictionary.containsKey(tokenText)) {
@@ -504,10 +564,12 @@ public class IndexWriter extends Token implements Serializable{
 						// scanning through postings list to find if file is
 						// already there
 						// if so, increment the number of occurences of it
+						sameStream = false;
 						for (Postings posting : postingsListTerm) 
 						{
 							if (posting.getFileID() == fileID) {
 								posting.incrementOccurences();
+								posting.setTfMap(tokenText, 1);
 								sameStream = true;
 								break;
 							} 
@@ -518,7 +580,9 @@ public class IndexWriter extends Token implements Serializable{
 						}
 						
 						if (sameStream == false) {
-							postingsListTerm.add(new Postings(fileID));
+							Postings p = new Postings(fileID);
+							p.setTfMap(tokenText, 1);
+							postingsListTerm.add(p);
 							this.placeIndex.put(tokenNo, postingsListTerm);
 						}
 
@@ -528,6 +592,7 @@ public class IndexWriter extends Token implements Serializable{
 					{
 						postingsListTerm = new LinkedList<Postings>();
 						Postings element = new Postings(fileID);
+						element.setTfMap(tokenText, 1);
 						postingsListTerm.add(element);
 						this.placeIndex.put(tokenNo, postingsListTerm);
 					}
@@ -542,7 +607,7 @@ public class IndexWriter extends Token implements Serializable{
 		
 		
 		
-
+		
 		
 		
 		
@@ -580,7 +645,15 @@ public class IndexWriter extends Token implements Serializable{
 				while (tstream.hasNext()) {
 					t = tstream.next();
 					tokenText = t.getTermText();
-
+					
+					
+					// creating the forward index
+					if (this.tempTfMap.containsKey(tokenText)){
+						this.tempTfMap.put(tokenText, this.tempTfMap.get(tokenText) + 1);	// increment tf by 1
+					} else {
+						this.tempTfMap.put(tokenText, 1);	// set tf as 1
+					}
+					
 					int tokenNo;
 					// create a mapping in the term dictionary
 					if (this.authorDictionary.containsKey(tokenText)) {
@@ -611,10 +684,12 @@ public class IndexWriter extends Token implements Serializable{
 						// scanning through postings list to find if file is
 						// already there
 						// if so, increment the number of occurences of it
+						sameStream = false;
 						for (Postings posting : postingsListTerm) 
 						{
 							if (posting.getFileID() == fileID) {
 								posting.incrementOccurences();
+								posting.setTfMap(tokenText, 1);
 								sameStream = true;
 								break;
 							} 
@@ -625,7 +700,9 @@ public class IndexWriter extends Token implements Serializable{
 						}
 						
 						if (sameStream == false) {
-							postingsListTerm.add(new Postings(fileID));
+							Postings p = new Postings(fileID);
+							p.setTfMap(tokenText, 1);
+							postingsListTerm.add(p);
 							this.authorIndex.put(tokenNo, postingsListTerm);
 						}
 
@@ -635,6 +712,7 @@ public class IndexWriter extends Token implements Serializable{
 					{
 						postingsListTerm = new LinkedList<Postings>();
 						Postings element = new Postings(fileID);
+						element.setTfMap(tokenText, 1);
 						postingsListTerm.add(element);
 						this.authorIndex.put(tokenNo, postingsListTerm);
 					}
@@ -656,3 +734,5 @@ public class IndexWriter extends Token implements Serializable{
 	} // END of ANALYZE method for AUTHOR
 	
 }
+
+
